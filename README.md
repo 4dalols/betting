@@ -36,7 +36,9 @@ Set `DEV_LOGIN_ENABLED="true"` in `.env` to sign in without Google at
 1. Create a Postgres DB on Neon (or Supabase) and copy the connection string.
 2. Import the repo into Vercel, set the env vars from `.env.example`. On Neon, set `DATABASE_URL` to the
    pooled connection string and `DIRECT_DATABASE_URL` to the unpooled one (same URL without `-pooler`) so
-   `prisma migrate deploy` doesn't time out acquiring its advisory lock.
+   `prisma migrate deploy` doesn't time out acquiring its advisory lock. If it still times out (P1002 — a stale
+   session holding the lock, or the Neon compute waking up), also set `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1`;
+   Vercel runs one production build at a time, so the lock isn't needed there.
 3. Set the build command to `prisma migrate deploy && next build` (or run `npm run db:migrate` once by hand).
 
 ## Scripts
