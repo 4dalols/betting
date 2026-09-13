@@ -134,7 +134,12 @@ export async function placeBet(_prev: ActionState, formData: FormData): Promise<
 
 async function reverseMarketPayouts(tx: Tx, marketId: string) {
   const prior = await tx.ledgerEntry.findMany({
-    where: { marketId, type: { in: ["PAYOUT", "REFUND"] } },
+    where: { marketId, type: { in: ["PAYOUT", "REFUND"] }, reversed: false },
+  });
+  if (prior.length === 0) return;
+  await tx.ledgerEntry.updateMany({
+    where: { id: { in: prior.map((p) => p.id) } },
+    data: { reversed: true },
   });
   for (const p of prior) {
     // Force the balance down even if the user has since spent it; admins can fix negatives.
