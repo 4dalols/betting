@@ -22,14 +22,14 @@ export default async function AdminPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Admin</h1>
+        <h1 className="page-title">Admin</h1>
         <p className="text-sm text-zinc-400">
           Total paper money outstanding: <span className="font-mono text-zinc-100">{formatCents(totals._sum.balanceCents ?? 0)}</span>
         </p>
       </div>
 
       <section>
-        <h2 className="mb-2 font-medium">Pending payment requests ({pending.length})</h2>
+        <h2 className="section-title mb-3">Pending payment requests ({pending.length})</h2>
         {pending.length === 0 && <p className="text-sm text-zinc-500">Nothing pending.</p>}
         <ul className="space-y-2">
           {pending.map((r) => (
@@ -61,7 +61,7 @@ export default async function AdminPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-medium">Users &amp; balance adjustments</h2>
+        <h2 className="section-title mb-3">Users &amp; balance adjustments</h2>
         <ul className="divide-y divide-zinc-800">
           {users.map((u) => (
             <li key={u.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">

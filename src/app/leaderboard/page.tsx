@@ -6,6 +6,8 @@ import { formatCents } from "@/lib/payout";
  * PnL = balance + money currently in open markets − net external money
  * (deposits − withdrawals ± manual admin adjustments). Only betting results move it.
  */
+const rankTone = ["text-amber-300", "text-zinc-300", "text-orange-400"];
+
 export default async function LeaderboardPage() {
   const me = await requireUser();
   const [users, external, openBets, openLiquidity] = await Promise.all([
@@ -43,53 +45,61 @@ export default async function LeaderboardPage() {
     .sort((a, b) => b.pnl - a.pnl);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Leaderboard</h1>
-        <p className="text-sm text-zinc-500">
+        <h1 className="page-title">Leaderboard</h1>
+        <p className="mt-1 text-sm text-zinc-500">
           PnL = balance + in play − (deposits − withdrawals). Only wins and losses move it.
         </p>
       </div>
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs text-zinc-500">
-          <tr>
-            <th className="py-1 pr-2">#</th>
-            <th className="py-1 pr-2">Name</th>
-            <th className="py-1 pr-2 text-right">PnL</th>
-            <th className="py-1 pr-2 text-right">Balance</th>
-            <th className="py-1 pr-2 text-right">In play</th>
-            <th className="py-1 text-right">Deposited</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-800">
-          {rows.map((r, i) => (
-            <tr key={r.id} className={r.id === me.id ? "text-zinc-100" : "text-zinc-300"}>
-              <td className="py-2 pr-2 text-zinc-500">{i + 1}</td>
-              <td className="py-2 pr-2">
-                {r.name ?? "?"} {r.id === me.id && <span className="text-xs text-zinc-500">(you)</span>}
-              </td>
-              <td
-                className={`py-2 pr-2 text-right font-mono ${
-                  r.pnl > 0 ? "text-emerald-300" : r.pnl < 0 ? "text-red-400" : ""
-                }`}
-              >
-                {r.pnl > 0 ? "+" : ""}
-                {formatCents(r.pnl)}
-              </td>
-              <td className="py-2 pr-2 text-right font-mono">{formatCents(r.balanceCents)}</td>
-              <td className="py-2 pr-2 text-right font-mono">{formatCents(r.playing)}</td>
-              <td className="py-2 text-right font-mono">{formatCents(r.external)}</td>
-            </tr>
-          ))}
-          {rows.length === 0 && (
+      <div className="card overflow-x-auto p-0">
+        <table className="w-full text-sm">
+          <thead className="section-title border-b border-white/10 text-left">
             <tr>
-              <td colSpan={6} className="py-4 text-zinc-500">
-                Nobody has deposited yet.
-              </td>
+              <th className="px-4 py-3">#</th>
+              <th className="px-2 py-3">Name</th>
+              <th className="px-2 py-3 text-right">PnL</th>
+              <th className="px-2 py-3 text-right">Balance</th>
+              <th className="px-2 py-3 text-right">In play</th>
+              <th className="px-4 py-3 text-right">Deposited</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {rows.map((r, i) => {
+              const isMe = r.id === me.id;
+              return (
+                <tr
+                  key={r.id}
+                  className={`transition hover:bg-white/[0.03] ${isMe ? "bg-accent-500/[0.06] text-zinc-50" : "text-zinc-300"}`}
+                >
+                  <td className={`px-4 py-3 font-mono font-semibold ${rankTone[i] ?? "text-zinc-500"}`}>{i + 1}</td>
+                  <td className="px-2 py-3 font-medium">
+                    {r.name ?? "?"} {isMe && <span className="ml-1 text-xs font-normal text-accent-300">you</span>}
+                  </td>
+                  <td
+                    className={`px-2 py-3 text-right font-mono font-semibold ${
+                      r.pnl > 0 ? "text-emerald-300" : r.pnl < 0 ? "text-red-400" : "text-zinc-400"
+                    }`}
+                  >
+                    {r.pnl > 0 ? "+" : ""}
+                    {formatCents(r.pnl)}
+                  </td>
+                  <td className="px-2 py-3 text-right font-mono">{formatCents(r.balanceCents)}</td>
+                  <td className="px-2 py-3 text-right font-mono text-zinc-400">{formatCents(r.playing)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-zinc-400">{formatCents(r.external)}</td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                  Nobody has deposited yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

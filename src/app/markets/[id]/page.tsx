@@ -44,16 +44,16 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
   const canVoid = (isCreator && market.status === "OPEN") || (isAdmin && market.status !== "VOIDED");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <div className="flex items-start gap-3">
-          <h1 className="flex-1 text-2xl font-semibold">{market.question}</h1>
-          <span className={`rounded-full px-2 py-0.5 text-xs ${statusTone[s.tone === "closed" ? "closed" : market.status]}`}>
+          <h1 className="page-title flex-1">{market.question}</h1>
+          <span className={`pill mt-1 ${statusTone[s.tone === "closed" ? "closed" : market.status]}`}>
             {s.text}
           </span>
         </div>
-        {market.description && <p className="mt-2 whitespace-pre-wrap text-zinc-400">{market.description}</p>}
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-500">
+        {market.description && <p className="mt-3 whitespace-pre-wrap leading-relaxed text-zinc-400">{market.description}</p>}
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-500">
           <span>by {market.creator.name ?? "someone"}</span>
           <span>{typeLabel[market.type]}</span>
           {isLiquid ? (
@@ -79,12 +79,21 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
           const bettors = market.bets.filter((b) => b.outcomeId === o.id);
           const p = price.get(o.id) ?? 0;
           return (
-            <div key={o.id} className={`card ${won ? "border-sky-500" : mine ? "border-zinc-500" : ""}`}>
-              <div className="flex items-baseline justify-between">
-                <h3 className="font-medium">
-                  {o.label} {won && <span className="text-sky-300">· winner</span>}
+            <div
+              key={o.id}
+              className={`card ${
+                won
+                  ? "border-sky-500/60 shadow-sky-500/10"
+                  : mine
+                    ? "border-accent-500/40 shadow-accent-500/10"
+                    : ""
+              }`}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-lg font-medium text-zinc-50">
+                  {o.label} {won && <span className="pill ml-1 bg-sky-500/15 text-sky-300 ring-sky-500/30">winner</span>}
                 </h3>
-                <span className="font-mono text-sm text-zinc-300">
+                <span className="font-mono text-lg font-semibold text-zinc-100">
                   {isLiquid ? `${Math.round(p * 100)}%` : formatCents(t)}
                 </span>
               </div>
@@ -105,8 +114,8 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
                 {bettors.map((b) => (
                   <li
                     key={b.id}
-                    className={`rounded px-1.5 py-0.5 text-xs ${
-                      b.userId === user.id ? "bg-zinc-100 text-zinc-900" : "bg-zinc-800 text-zinc-300"
+                    className={`rounded-md px-1.5 py-0.5 text-xs ${
+                      b.userId === user.id ? "bg-accent-500/20 text-accent-300" : "bg-white/5 text-zinc-300"
                     }`}
                   >
                     {b.user.name ?? "?"}
@@ -162,8 +171,8 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
       )}
 
       {(canResolve || canVoid) && (
-        <section className="card space-y-3">
-          <h2 className="font-medium">
+        <section className="card space-y-3 border-amber-500/20">
+          <h2 className="section-title text-amber-300/80">
             {isAdmin && !isCreator ? "Admin controls" : "Market maker controls"}
           </h2>
           {market.status === "RESOLVED" && isAdmin && (
@@ -200,7 +209,7 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
       )}
 
       <section className="space-y-3">
-        <h2 className="font-medium">Clarifications</h2>
+        <h2 className="section-title">Clarifications</h2>
         <p className="text-xs text-zinc-500">
           Ask how edge cases will be resolved before you bet. Answers from the market maker are highlighted.
         </p>
@@ -209,7 +218,7 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
             {market.comments.map((c) => {
               const fromMaker = c.userId === market.creator.id;
               return (
-                <li key={c.id} className={`card py-2 ${fromMaker ? "border-amber-500/60" : ""}`}>
+                <li key={c.id} className={`card py-3 ${fromMaker ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}`}>
                   <div className="flex items-baseline gap-2 text-xs text-zinc-500">
                     <span className={fromMaker ? "font-medium text-amber-300" : "text-zinc-300"}>
                       {c.user.name ?? "?"}
