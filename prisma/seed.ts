@@ -13,7 +13,12 @@ async function main() {
     const u = await prisma.user.upsert({
       where: { email: `${name.toLowerCase()}@example.com` },
       update: {},
-      create: { name, email: `${name.toLowerCase()}@example.com`, balanceCents: 5000 },
+      create: {
+        name,
+        email: `${name.toLowerCase()}@example.com`,
+        balanceCents: 5000,
+        ledger: { create: { deltaCents: 5000, type: "DEPOSIT", note: "Seed deposit" } },
+      },
     });
     users.push(u);
   }
