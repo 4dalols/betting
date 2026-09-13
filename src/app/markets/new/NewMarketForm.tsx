@@ -3,15 +3,27 @@
 import { useActionState, useState } from "react";
 import { createMarket } from "@/lib/actions";
 
+type MarketType = "BINARY" | "MULTI" | "FLIP" | "LIQUID";
+
+const types: { key: MarketType; label: string; hint: string }[] = [
+  { key: "BINARY", label: "Yes / No", hint: "Fixed stake per bet; winners split the pool." },
+  { key: "MULTI", label: "Multiple choice", hint: "Same as yes/no with more options; bet on several but not all." },
+  { key: "FLIP", label: "Flip", hint: "You take one side; exactly one person can take the other. Winner takes both stakes." },
+  { key: "LIQUID", label: "Liquid", hint: "You fund liquidity; people buy shares at a moving price (Manifold-style). Shares pay $1 if right." },
+];
+
 export function NewMarketForm() {
   const [state, formAction, pending] = useActionState(createMarket, {});
   const [question, setQuestion] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState<"BINARY" | "MULTI">("BINARY");
+  const [type, setType] = useState<MarketType>("BINARY");
   const [yesLabel, setYesLabel] = useState("Yes");
   const [noLabel, setNoLabel] = useState("No");
+  const [side, setSide] = useState<"0" | "1">("0");
   const [outcomes, setOutcomes] = useState(["", "", ""]);
   const [stake, setStake] = useState("");
+  const [liquidity, setLiquidity] = useState("");
+  const twoSided = type === "BINARY" || type === "FLIP";
   const [hasDeadline, setHasDeadline] = useState(true);
   const [closesLocal, setClosesLocal] = useState("");
   const closesIso = closesLocal ? new Date(closesLocal).toISOString() : "";
@@ -45,30 +57,34 @@ export function NewMarketForm() {
 
         <div>
           <span className="mb-1 block text-sm text-zinc-400">Type</span>
-          <div className="flex gap-2">
-            {(["BINARY", "MULTI"] as const).map((t) => (
+          <div className="flex flex-wrap gap-2">
+            {types.map((t) => (
               <label
-                key={t}
+                key={t.key}
                 className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
-                  type === t ? "border-zinc-300 bg-zinc-800" : "border-zinc-700"
+                  type === t.key ? "border-zinc-300 bg-zinc-800" : "border-zinc-700"
                 }`}
               >
                 <input
-                  key={`${t}-${type === t}`}
+                  key={`${t.key}-${type === t.key}`}
                   type="radio"
                   name="type"
-                  value={t}
-                  checked={type === t}
-                  onChange={() => setType(t)}
+                  value={t.key}
+                  checked={type === t.key}
+                  onChange={() => {
+                    setType(t.key);
+                    if (t.key === "LIQUID" && outcomes.every((o) => o === "")) setOutcomes(["Yes", "No"]);
+                  }}
                   className="sr-only"
                 />
-                {t === "BINARY" ? "Yes / No (or Over / Under)" : "Multiple choice"}
+                {t.label}
               </label>
             ))}
           </div>
+          <p className="mt-1 text-xs text-zinc-500">{types.find((t) => t.key === type)?.hint}</p>
         </div>
 
-        {type === "BINARY" ? (
+        {twoSided ? (
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="mb-1 block text-sm text-zinc-400">First option</span>
@@ -114,21 +130,73 @@ export function NewMarketForm() {
           </div>
         )}
 
-        <label className="block">
-          <span className="mb-1 block text-sm text-zinc-400">Stake per bet ($)</span>
-          <input
-            name="stake"
-            type="number"
-            min="0.01"
-            step="0.01"
-            required
-            className="input"
-            placeholder="5.00"
-            value={stake}
-            onChange={(e) => setStake(e.target.value)}
-          />
-          <span className="mt-1 block text-xs text-zinc-500">Everyone bets exactly this amount per choice.</span>
-        </label>
+        {type === "FLIP" && (
+          <div>
+            <span className="mb-1 block text-sm text-zinc-400">Your side</span>
+            <div className="flex gap-2">
+              {(["0", "1"] as const).map((s) => (
+                <label
+                  key={s}
+                  className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
+                    side === s ? "border-zinc-300 bg-zinc-800" : "border-zinc-700"
+                  }`}
+                >
+                  <input
+                    key={`${s}-${side === s}`}
+                    type="radio"
+                    name="side"
+                    value={s}
+                    checked={side === s}
+                    onChange={() => setSide(s)}
+                    className="sr-only"
+                  />
+                  {s === "0" ? yesLabel || "Yes" : noLabel || "No"}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {type === "LIQUID" ? (
+          <label className="block">
+            <span className="mb-1 block text-sm text-zinc-400">Liquidity you provide ($)</span>
+            <input
+              name="liquidity"
+              type="number"
+              min="1"
+              step="0.01"
+              required
+              className="input"
+              placeholder="20.00"
+              value={liquidity}
+              onChange={(e) => setLiquidity(e.target.value)}
+            />
+            <span className="mt-1 block text-xs text-zinc-500">
+              Taken from your balance now; it&apos;s the most you can lose. More liquidity = prices move less per trade.
+              Whatever isn&apos;t paid to winners comes back to you at resolution.
+            </span>
+          </label>
+        ) : (
+          <label className="block">
+            <span className="mb-1 block text-sm text-zinc-400">{type === "FLIP" ? "Stake each ($)" : "Stake per bet ($)"}</span>
+            <input
+              name="stake"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+              className="input"
+              placeholder="5.00"
+              value={stake}
+              onChange={(e) => setStake(e.target.value)}
+            />
+            <span className="mt-1 block text-xs text-zinc-500">
+              {type === "FLIP"
+                ? "Your stake is taken from your balance now; the taker matches it."
+                : "Everyone bets exactly this amount per choice."}
+            </span>
+          </label>
+        )}
 
         <div>
           <label className="flex items-center gap-2 text-sm text-zinc-400">

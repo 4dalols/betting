@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { computePayouts, parseDollars } from "@/lib/payout";
+import { liquidityB, settleLiquid, sharesForSpend } from "@/lib/lmsr";
 import type { LedgerType, PaymentKind } from "@/generated/prisma/client";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -49,8 +50,10 @@ function fail(e: unknown): ActionState {
 const createMarketSchema = z.object({
   question: z.string().trim().min(3).max(200),
   description: z.string().trim().max(2000).optional(),
-  type: z.enum(["BINARY", "MULTI"]),
-  stake: z.string(),
+  type: z.enum(["BINARY", "MULTI", "FLIP", "LIQUID"]),
+  stake: z.string().optional(),
+  liquidity: z.string().optional(),
+  side: z.enum(["0", "1"]).optional(),
   closesAt: z.string().optional(),
   outcomes: z.array(z.string().trim().min(1).max(60)).min(2).max(12),
 });
@@ -63,36 +66,61 @@ export async function createMarket(_prev: ActionState, formData: FormData): Prom
       question: formData.get("question"),
       description: formData.get("description") || undefined,
       type: formData.get("type"),
-      stake: formData.get("stake"),
+      stake: formData.get("stake") || undefined,
+      liquidity: formData.get("liquidity") || undefined,
+      side: formData.get("side") || undefined,
       closesAt: formData.get("closesAt") || undefined,
       outcomes:
-        formData.get("type") === "BINARY"
+        formData.get("type") === "BINARY" || formData.get("type") === "FLIP"
           ? [formData.get("yesLabel") || "Yes", formData.get("noLabel") || "No"]
           : formData.getAll("outcomes").filter((o) => String(o).trim() !== ""),
     };
     const parsed = createMarketSchema.safeParse(raw);
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
     const d = parsed.data;
-    const stakeCents = parseDollars(d.stake);
-    if (!stakeCents) return { error: "Stake must be a positive dollar amount" };
     if (new Set(d.outcomes.map((o) => o.toLowerCase())).size !== d.outcomes.length)
       return { error: "Outcomes must be distinct" };
     const closesAt = d.closesAt ? new Date(d.closesAt) : null;
     if (closesAt && (isNaN(closesAt.getTime()) || closesAt <= new Date()))
       return { error: "Deadline must be in the future" };
 
-    const market = await prisma.market.create({
-      data: {
-        question: d.question,
-        description: d.description,
-        type: d.type,
-        stakeCents,
-        closesAt,
-        creatorId: user.id,
-        outcomes: { create: d.outcomes.map((label, i) => ({ label, sortOrder: i })) },
-      },
+    let stakeCents = 0;
+    let liquidityCents: number | null = null;
+    if (d.type === "LIQUID") {
+      liquidityCents = parseDollars(d.liquidity ?? "");
+      if (!liquidityCents || liquidityCents < 100) return { error: "Liquidity must be at least $1" };
+    } else {
+      stakeCents = parseDollars(d.stake ?? "") ?? 0;
+      if (!stakeCents) return { error: "Stake must be a positive dollar amount" };
+    }
+    if (d.type === "FLIP" && !d.side) return { error: "Pick the side you're taking" };
+
+    marketId = await prisma.$transaction(async (tx) => {
+      const market = await tx.market.create({
+        data: {
+          question: d.question,
+          description: d.description,
+          type: d.type,
+          stakeCents,
+          liquidityCents,
+          closesAt,
+          creatorId: user.id,
+          outcomes: { create: d.outcomes.map((label, i) => ({ label, sortOrder: i })) },
+        },
+        include: { outcomes: { orderBy: { sortOrder: "asc" } } },
+      });
+      if (d.type === "LIQUID" && liquidityCents) {
+        await debit(tx, user.id, liquidityCents, "LIQUIDITY", { marketId: market.id, note: d.question });
+      }
+      if (d.type === "FLIP") {
+        const outcome = market.outcomes[Number(d.side)];
+        await debit(tx, user.id, stakeCents, "BET", { marketId: market.id, note: d.question });
+        await tx.bet.create({
+          data: { marketId: market.id, outcomeId: outcome.id, userId: user.id, amountCents: stakeCents },
+        });
+      }
+      return market.id;
     });
-    marketId = market.id;
   } catch (e) {
     return fail(e);
   }
@@ -112,9 +140,16 @@ export async function placeBet(_prev: ActionState, formData: FormData): Promise<
         include: { outcomes: true, bets: { where: { userId: user.id } } },
       });
       if (!market) throw new Error("Market not found");
+      if (market.type === "LIQUID") throw new Error("Use the buy form for this market");
       if (market.status !== "OPEN") throw new Error("Market is closed");
       if (market.closesAt && market.closesAt <= new Date()) throw new Error("Betting deadline has passed");
       if (!market.outcomes.some((o) => o.id === outcomeId)) throw new Error("Invalid outcome");
+      if (market.type === "FLIP") {
+        if (market.creatorId === user.id) throw new Error("You proposed this flip; someone else has to take the other side");
+        const all = await tx.bet.findMany({ where: { marketId } });
+        if (all.length >= 2) throw new Error("This flip is already filled");
+        if (all.some((b) => b.outcomeId === outcomeId)) throw new Error("That side is already taken");
+      }
       if (market.bets.some((b) => b.outcomeId === outcomeId)) throw new Error("You already bet on this outcome");
       if (market.bets.length + 1 >= market.outcomes.length)
         throw new Error("You can't bet on every outcome");
@@ -122,6 +157,49 @@ export async function placeBet(_prev: ActionState, formData: FormData): Promise<
       await debit(tx, user.id, market.stakeCents, "BET", { marketId, note: market.question });
       await tx.bet.create({
         data: { marketId, outcomeId, userId: user.id, amountCents: market.stakeCents },
+      });
+    });
+  } catch (e) {
+    return fail(e);
+  }
+  revalidatePath("/");
+  revalidatePath("/account");
+  return { ok: true };
+}
+
+export async function buyShares(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const user = await requireUser();
+    const marketId = String(formData.get("marketId"));
+    const outcomeId = String(formData.get("outcomeId"));
+    const spendCents = parseDollars(String(formData.get("amount") ?? ""));
+    if (!spendCents) throw new Error("Amount must be a positive dollar amount");
+
+    await prisma.$transaction(async (tx) => {
+      // Serialize trades on this market so prices are computed from committed state.
+      await tx.$executeRaw`SELECT id FROM "Market" WHERE id = ${marketId} FOR UPDATE`;
+      const market = await tx.market.findUnique({
+        where: { id: marketId },
+        include: { outcomes: { orderBy: { sortOrder: "asc" } } },
+      });
+      if (!market) throw new Error("Market not found");
+      if (market.type !== "LIQUID" || !market.liquidityCents) throw new Error("Not a liquid market");
+      if (market.status !== "OPEN") throw new Error("Market is closed");
+      if (market.closesAt && market.closesAt <= new Date()) throw new Error("Trading deadline has passed");
+      const i = market.outcomes.findIndex((o) => o.id === outcomeId);
+      if (i < 0) throw new Error("Invalid outcome");
+
+      const b = liquidityB(market.liquidityCents, market.outcomes.length);
+      const q = market.outcomes.map((o) => o.shares);
+      const shares = sharesForSpend(q, b, i, spendCents);
+      if (!Number.isFinite(shares) || shares <= 0) throw new Error("Trade too small");
+
+      await debit(tx, user.id, spendCents, "BET", { marketId, note: `${market.outcomes[i].label} — ${market.question}` });
+      await tx.outcome.update({ where: { id: outcomeId }, data: { shares: { increment: shares } } });
+      await tx.bet.upsert({
+        where: { marketId_userId_outcomeId: { marketId, userId: user.id, outcomeId } },
+        create: { marketId, outcomeId, userId: user.id, amountCents: spendCents, shares },
+        update: { amountCents: { increment: spendCents }, shares: { increment: shares } },
       });
     });
   } catch (e) {
@@ -179,8 +257,19 @@ export async function resolveMarket(_prev: ActionState, formData: FormData): Pro
 
       if (market.status !== "OPEN") await reverseMarketPayouts(tx, marketId);
 
-      const payouts = computePayouts(market.bets, outcomeId);
-      if (payouts.length === 0) {
+      if (market.type === "LIQUID") {
+        const { winners, creatorCents } = settleLiquid(market.bets, outcomeId, market.liquidityCents ?? 0);
+        for (const w of winners)
+          await credit(tx, w.userId, w.amountCents, "PAYOUT", {
+            marketId,
+            note: `${outcome.label} — ${market.question}`,
+          });
+        if (creatorCents > 0)
+          await credit(tx, market.creatorId, creatorCents, "PAYOUT", {
+            marketId,
+            note: `Liquidity returned — ${market.question}`,
+          });
+      } else if (computePayouts(market.bets, outcomeId).length === 0) {
         // Nobody picked the winner: refund all stakes.
         for (const b of market.bets)
           await credit(tx, b.userId, b.amountCents, "REFUND", {
@@ -188,7 +277,7 @@ export async function resolveMarket(_prev: ActionState, formData: FormData): Pro
             note: `No winners: ${market.question}`,
           });
       } else {
-        for (const p of payouts)
+        for (const p of computePayouts(market.bets, outcomeId))
           await credit(tx, p.userId, p.amountCents, "PAYOUT", {
             marketId,
             note: `${outcome.label} — ${market.question}`,
@@ -230,6 +319,11 @@ export async function voidMarket(_prev: ActionState, formData: FormData): Promis
         await credit(tx, b.userId, b.amountCents, "REFUND", {
           marketId,
           note: `Voided: ${market.question}`,
+        });
+      if (market.type === "LIQUID" && market.liquidityCents)
+        await credit(tx, market.creatorId, market.liquidityCents, "REFUND", {
+          marketId,
+          note: `Voided, liquidity returned: ${market.question}`,
         });
       await tx.market.update({
         where: { id: marketId },

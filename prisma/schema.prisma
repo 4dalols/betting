@@ -19,11 +19,14 @@ enum LedgerType {
   PAYOUT
   REFUND
   ADMIN_ADJUST
+  LIQUIDITY
 }
 
 enum MarketType {
   BINARY
   MULTI
+  FLIP
+  LIQUID
 }
 
 enum MarketStatus {
@@ -85,6 +88,7 @@ model Market {
   description       String?
   type              MarketType
   stakeCents        Int
+  liquidityCents    Int?
   closesAt          DateTime?
   status            MarketStatus @default(OPEN)
   creatorId         String
@@ -121,6 +125,7 @@ model Outcome {
   market    Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
   label     String
   sortOrder Int
+  shares    Float  @default(0)
 
   bets Bet[]
 }
@@ -134,6 +139,7 @@ model Bet {
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   amountCents Int
+  shares      Float    @default(0)
   createdAt   DateTime @default(now())
 
   @@unique([marketId, userId, outcomeId])

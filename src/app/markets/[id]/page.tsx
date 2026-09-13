@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { addComment, placeBet, resolveMarket, voidMarket } from "@/lib/actions";
-import { isBettable, outcomeTotals, statusLabel, statusTone } from "@/lib/markets";
+import { isBettable, liquidPrices, outcomeTotals, statusLabel, statusTone, typeLabel } from "@/lib/markets";
 import { formatCents } from "@/lib/payout";
 import { ActionForm } from "@/components/ActionForm";
+import { BuyShares } from "@/components/BuyShares";
 
 export default async function MarketPage({ params }: PageProps<"/markets/[id]">) {
   const user = await requireUser();
@@ -21,14 +22,24 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
   });
   if (!market) notFound();
 
-  const { pool, totals } = outcomeTotals(market);
+  const { pool: spent, totals } = outcomeTotals(market);
+  const isLiquid = market.type === "LIQUID";
+  const isFlip = market.type === "FLIP";
+  const pool = spent + (isLiquid ? (market.liquidityCents ?? 0) : 0);
+  const { b, price } = isLiquid ? liquidPrices(market) : { b: 0, price: new Map<string, number>() };
+  const q = market.outcomes.map((o) => o.shares);
   const s = statusLabel(market);
   const isAdmin = user.role === "ADMIN";
   const isCreator = market.creator.id === user.id;
   const myBets = market.bets.filter((b) => b.userId === user.id);
   const myOutcomeIds = new Set(myBets.map((b) => b.outcomeId));
   const bettable = isBettable(market);
-  const canBetMore = bettable && myBets.length + 1 < market.outcomes.length;
+  const flipFilled = isFlip && market.bets.length >= 2;
+  const canBetMore =
+    bettable &&
+    !isLiquid &&
+    myBets.length + 1 < market.outcomes.length &&
+    (!isFlip || (!isCreator && !flipFilled));
   const canResolve = (isCreator && market.status === "OPEN") || isAdmin;
   const canVoid = (isCreator && market.status === "OPEN") || (isAdmin && market.status !== "VOIDED");
 
@@ -44,8 +55,13 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
         {market.description && <p className="mt-2 whitespace-pre-wrap text-zinc-400">{market.description}</p>}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-500">
           <span>by {market.creator.name ?? "someone"}</span>
-          <span>stake {formatCents(market.stakeCents)}</span>
-          <span>pool {formatCents(pool)}</span>
+          <span>{typeLabel[market.type]}</span>
+          {isLiquid ? (
+            <span>liquidity {formatCents(market.liquidityCents ?? 0)}</span>
+          ) : (
+            <span>stake {formatCents(market.stakeCents)}</span>
+          )}
+          <span>{isLiquid ? "volume" : "pool"} {formatCents(spent)}</span>
           <span>{market.closesAt ? `closes ${market.closesAt.toLocaleString()}` : "no deadline"}</span>
           {market.status === "RESOLVED" && (
             <span>
@@ -61,18 +77,29 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
           const won = market.resolvedOutcomeId === o.id;
           const mine = myOutcomeIds.has(o.id);
           const bettors = market.bets.filter((b) => b.outcomeId === o.id);
+          const p = price.get(o.id) ?? 0;
           return (
             <div key={o.id} className={`card ${won ? "border-sky-500" : mine ? "border-zinc-500" : ""}`}>
               <div className="flex items-baseline justify-between">
                 <h3 className="font-medium">
                   {o.label} {won && <span className="text-sky-300">· winner</span>}
                 </h3>
-                <span className="font-mono text-sm text-zinc-300">{formatCents(t)}</span>
+                <span className="font-mono text-sm text-zinc-300">
+                  {isLiquid ? `${Math.round(p * 100)}%` : formatCents(t)}
+                </span>
               </div>
               <p className="mt-1 text-xs text-zinc-500">
-                {bettors.length} bet{bettors.length === 1 ? "" : "s"}
-                {t > 0 && ` · pays ${(pool / t).toFixed(2)}x if it wins`}
-                {t === 0 && pool > 0 && ` · would take the whole pool`}
+                {isLiquid ? (
+                  <>
+                    {formatCents(o.shares)} in shares held · {formatCents(t)} spent
+                  </>
+                ) : (
+                  <>
+                    {bettors.length} bet{bettors.length === 1 ? "" : "s"}
+                    {t > 0 && ` · pays ${(pool / t).toFixed(2)}x if it wins`}
+                    {t === 0 && pool > 0 && ` · would take the whole pool`}
+                  </>
+                )}
               </p>
               <ul className="mt-2 flex flex-wrap gap-1">
                 {bettors.map((b) => (
@@ -83,6 +110,7 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
                     }`}
                   >
                     {b.user.name ?? "?"}
+                    {isLiquid && ` · ${formatCents(Math.floor(b.shares))}`}
                   </li>
                 ))}
               </ul>
@@ -90,17 +118,47 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
                 <ActionForm action={placeBet} className="mt-3">
                   <input type="hidden" name="marketId" value={market.id} />
                   <input type="hidden" name="outcomeId" value={o.id} />
-                  <button className="btn w-full">Bet {formatCents(market.stakeCents)} on {o.label}</button>
+                  <button className="btn w-full">
+                    {isFlip ? "Take" : "Bet"} {formatCents(market.stakeCents)} on {o.label}
+                  </button>
                 </ActionForm>
               )}
-              {mine && <p className="mt-3 text-xs text-zinc-400">You bet {formatCents(market.stakeCents)} here.</p>}
+              {isLiquid && bettable && (
+                <BuyShares
+                  marketId={market.id}
+                  outcomeId={o.id}
+                  outcomeIndex={market.outcomes.indexOf(o)}
+                  label={o.label}
+                  q={q}
+                  b={b}
+                />
+              )}
+              {mine && !isLiquid && <p className="mt-3 text-xs text-zinc-400">You bet {formatCents(market.stakeCents)} here.</p>}
+              {mine && isLiquid && (
+                <p className="mt-2 text-xs text-zinc-400">
+                  You hold {formatCents(Math.floor(myBets.find((x) => x.outcomeId === o.id)?.shares ?? 0))} in shares here
+                  (spent {formatCents(myBets.find((x) => x.outcomeId === o.id)?.amountCents ?? 0)}).
+                </p>
+              )}
             </div>
           );
         })}
       </section>
 
-      {bettable && !canBetMore && myBets.length > 0 && (
+      {bettable && !isLiquid && !isFlip && !canBetMore && myBets.length > 0 && (
         <p className="text-sm text-zinc-500">You&apos;ve bet on as many outcomes as allowed for this market.</p>
+      )}
+      {isFlip && !flipFilled && (
+        <p className="text-sm text-zinc-500">
+          {isCreator ? "Waiting for someone to take the other side." : "Only one person can take this flip."}
+          {" "}If nobody does before it resolves, the stake is refunded.
+        </p>
+      )}
+      {isLiquid && (
+        <p className="text-sm text-zinc-500">
+          Each share pays $1 if its outcome wins. Prices move as people buy; there&apos;s no selling. The market maker
+          funded {formatCents(market.liquidityCents ?? 0)} of liquidity and gets back whatever isn&apos;t paid out.
+        </p>
       )}
 
       {(canResolve || canVoid) && (
