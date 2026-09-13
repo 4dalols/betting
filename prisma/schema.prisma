@@ -61,6 +61,7 @@ model User {
   marketsResolved Market[]         @relation("MarketResolver")
   payments        PaymentRequest[] @relation("PaymentUser")
   paymentsHandled PaymentRequest[] @relation("PaymentHandler")
+  comments        Comment[]
 }
 
 model LedgerEntry {
@@ -97,8 +98,21 @@ model Market {
   outcomes Outcome[]
   bets     Bet[]
   ledger   LedgerEntry[]
+  comments Comment[]
 
   @@index([status, closesAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  marketId  String
+  market    Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([marketId, createdAt])
 }
 
 model Outcome {
