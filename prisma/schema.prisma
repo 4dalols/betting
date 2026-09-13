@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum LedgerType {
+  DEPOSIT
+  WITHDRAWAL
+  BET
+  PAYOUT
+  REFUND
+  ADMIN_ADJUST
+}
+
+enum MarketType {
+  BINARY
+  MULTI
+}
+
+enum MarketStatus {
+  OPEN
+  RESOLVED
+  VOIDED
+}
+
+enum PaymentKind {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(USER)
+  balanceCents  Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  accounts        Account[]
+  sessions        Session[]
+  ledger          LedgerEntry[]
+  bets            Bet[]
+  marketsCreated  Market[]         @relation("MarketCreator")
+  marketsResolved Market[]         @relation("MarketResolver")
+  payments        PaymentRequest[] @relation("PaymentUser")
+  paymentsHandled PaymentRequest[] @relation("PaymentHandler")
+}
+
+model LedgerEntry {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deltaCents Int
+  type       LedgerType
+  marketId   String?
+  market     Market?    @relation(fields: [marketId], references: [id])
+  note       String?
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Market {
+  id                String       @id @default(cuid())
+  question          String
+  description       String?
+  type              MarketType
+  stakeCents        Int
+  closesAt          DateTime?
+  status            MarketStatus @default(OPEN)
+  creatorId         String
+  creator           User         @relation("MarketCreator", fields: [creatorId], references: [id])
+  resolvedOutcomeId String?
+  resolvedAt        DateTime?
+  resolvedById      String?
+  resolvedBy        User?        @relation("MarketResolver", fields: [resolvedById], references: [id])
+  createdAt         DateTime     @default(now())
+
+  outcomes Outcome[]
+  bets     Bet[]
+  ledger   LedgerEntry[]
+
+  @@index([status, closesAt])
+}
+
+model Outcome {
+  id        String @id @default(cuid())
+  marketId  String
+  market    Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  label     String
+  sortOrder Int
+
+  bets Bet[]
+}
+
+model Bet {
+  id          String   @id @default(cuid())
+  marketId    String
+  market      Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  outcomeId   String
+  outcome     Outcome  @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  @@unique([marketId, userId, outcomeId])
+  @@index([userId])
+}
+
+model PaymentRequest {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation("PaymentUser", fields: [userId], references: [id])
+  kind        PaymentKind
+  amountCents Int
+  method      String
+  note        String?
+  status      PaymentStatus @default(PENDING)
+  handledById String?
+  handledBy   User?         @relation("PaymentHandler", fields: [handledById], references: [id])
+  handledAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([status, createdAt])
+}
+
+// Auth.js
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
