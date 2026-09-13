@@ -61,8 +61,8 @@ export function NewMarketForm() {
             {types.map((t) => (
               <label
                 key={t.key}
-                className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
-                  type === t.key ? "border-zinc-300 bg-zinc-800" : "border-zinc-700"
+                className={`cursor-pointer rounded-lg border px-3 py-2 text-sm transition ${
+                  type === t.key ? "border-accent-500/60 bg-accent-500/10 text-zinc-50" : "border-white/10 text-zinc-300 hover:border-white/20"
                 }`}
               >
                 <input
@@ -137,8 +137,8 @@ export function NewMarketForm() {
               {(["0", "1"] as const).map((s) => (
                 <label
                   key={s}
-                  className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
-                    side === s ? "border-zinc-300 bg-zinc-800" : "border-zinc-700"
+                  className={`cursor-pointer rounded-lg border px-3 py-2 text-sm transition ${
+                    side === s ? "border-accent-500/60 bg-accent-500/10 text-zinc-50" : "border-white/10 text-zinc-300 hover:border-white/20"
                   }`}
                 >
                   <input

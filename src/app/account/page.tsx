@@ -18,10 +18,14 @@ export default async function AccountPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">{me.name}</h1>
-        <p className="text-zinc-400">{me.email}</p>
-        <p className="mt-4 text-4xl font-mono">{formatCents(me.balanceCents)}</p>
+      <div className="card relative overflow-hidden bg-gradient-to-br from-accent-500/15 via-zinc-900/60 to-zinc-900/60">
+        <p className="section-title">Balance</p>
+        <p className="mt-2 font-mono text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">
+          {formatCents(me.balanceCents)}
+        </p>
+        <p className="mt-4 text-sm text-zinc-300">
+          {me.name} <span className="text-zinc-500">· {me.email}</span>
+        </p>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2">
@@ -32,7 +36,7 @@ export default async function AccountPage() {
             className="card space-y-3"
             successMessage="Request sent — the admin will confirm it."
           >
-            <h2 className="font-medium">{kind === "DEPOSIT" ? "Deposit" : "Withdraw"}</h2>
+            <h2 className="text-lg font-medium text-zinc-50">{kind === "DEPOSIT" ? "Deposit" : "Withdraw"}</h2>
             <p className="text-xs text-zinc-500">
               {kind === "DEPOSIT"
                 ? `Send the money${adminHandle ? ` to ${adminHandle}` : " to the admin"}, then log it here. Your balance updates once confirmed.`
@@ -55,8 +59,8 @@ export default async function AccountPage() {
 
       {requests.length > 0 && (
         <section>
-          <h2 className="mb-2 font-medium">Payment requests</h2>
-          <ul className="divide-y divide-zinc-800 text-sm">
+          <h2 className="section-title mb-3">Payment requests</h2>
+          <ul className="card divide-y divide-white/5 p-0 text-sm [&>li]:px-4">
             {requests.map((r) => (
               <li key={r.id} className="flex items-center gap-3 py-2">
                 <span className="w-24 text-zinc-400">{r.kind === "DEPOSIT" ? "Deposit" : "Withdrawal"}</span>
@@ -76,9 +80,9 @@ export default async function AccountPage() {
       )}
 
       <section>
-        <h2 className="mb-2 font-medium">History</h2>
+        <h2 className="section-title mb-3">History</h2>
         {ledger.length === 0 && <p className="text-sm text-zinc-500">Nothing yet.</p>}
-        <ul className="divide-y divide-zinc-800 text-sm">
+        <ul className="card divide-y divide-white/5 p-0 text-sm [&>li]:px-4">
           {ledger.map((e) => (
             <li key={e.id} className="flex items-center gap-3 py-2">
               <span className="w-36 shrink-0 text-xs text-zinc-500">{e.createdAt.toLocaleString()}</span>
