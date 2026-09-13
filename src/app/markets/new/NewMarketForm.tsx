@@ -54,6 +54,7 @@ export function NewMarketForm() {
                 }`}
               >
                 <input
+                  key={`${t}-${type === t}`}
                   type="radio"
                   name="type"
                   value={t}
@@ -131,7 +132,7 @@ export function NewMarketForm() {
 
         <div>
           <label className="flex items-center gap-2 text-sm text-zinc-400">
-            <input type="checkbox" checked={hasDeadline} onChange={(e) => setHasDeadline(e.target.checked)} />
+            <input key={String(hasDeadline)} type="checkbox" checked={hasDeadline} onChange={(e) => setHasDeadline(e.target.checked)} />
             Betting deadline
           </label>
           {hasDeadline && (
