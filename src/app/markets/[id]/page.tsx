@@ -114,7 +114,7 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
                   </li>
                 ))}
               </ul>
-              {canBetMore && !mine && (
+              {canBetMore && !mine && !(isFlip && bettors.length > 0) && (
                 <ActionForm action={placeBet} className="mt-3">
                   <input type="hidden" name="marketId" value={market.id} />
                   <input type="hidden" name="outcomeId" value={o.id} />
