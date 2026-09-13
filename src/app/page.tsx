@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { listMarkets, outcomeTotals, statusLabel, statusTone } from "@/lib/markets";
+import { liquidPrices, listMarkets, outcomeTotals, statusLabel, statusTone, typeLabel } from "@/lib/markets";
 import { formatCents } from "@/lib/payout";
 
 const filters = [
@@ -41,6 +41,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       <ul className="space-y-3">
         {markets.map((m) => {
           const { pool, totals } = outcomeTotals(m);
+          const isLiquid = m.type === "LIQUID";
+          const price = isLiquid ? liquidPrices(m).price : null;
           const s = statusLabel(m);
           const myOutcomes = new Set(m.bets.filter((b) => b.userId === user.id).map((b) => b.outcomeId));
           return (
@@ -54,8 +56,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
                   <span>by {m.creator.name ?? "someone"}</span>
-                  <span>stake {formatCents(m.stakeCents)}</span>
-                  <span>pool {formatCents(pool)}</span>
+                  <span>{typeLabel[m.type]}</span>
+                  {isLiquid ? (
+                    <span>volume {formatCents(pool)}</span>
+                  ) : (
+                    <>
+                      <span>stake {formatCents(m.stakeCents)}</span>
+                      <span>pool {formatCents(pool)}</span>
+                    </>
+                  )}
+                  {m.type === "FLIP" && m.status === "OPEN" && m.bets.length < 2 && <span className="text-amber-300">needs a taker</span>}
                   {m.closesAt && <span>closes {m.closesAt.toLocaleString()}</span>}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -73,8 +83,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                               : "border-zinc-800 text-zinc-400"
                         }`}
                       >
-                        {o.label} · {formatCents(t)}
-                        {pool > 0 && t > 0 && <span className="text-zinc-500"> · {(pool / t).toFixed(2)}x</span>}
+                        {o.label} ·{" "}
+                        {price ? `${Math.round((price.get(o.id) ?? 0) * 100)}%` : formatCents(t)}
+                        {!price && pool > 0 && t > 0 && <span className="text-zinc-500"> · {(pool / t).toFixed(2)}x</span>}
                       </span>
                     );
                   })}
