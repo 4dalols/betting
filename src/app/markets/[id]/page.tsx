@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { placeBet, resolveMarket, voidMarket } from "@/lib/actions";
+import { addComment, placeBet, resolveMarket, voidMarket } from "@/lib/actions";
 import { isBettable, outcomeTotals, statusLabel, statusTone } from "@/lib/markets";
 import { formatCents } from "@/lib/payout";
 import { ActionForm } from "@/components/ActionForm";
@@ -16,6 +16,7 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
       resolvedBy: { select: { name: true } },
       outcomes: { orderBy: { sortOrder: "asc" } },
       bets: { include: { user: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" } },
+      comments: { include: { user: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" } },
     },
   });
   if (!market) notFound();
@@ -139,6 +140,43 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
           )}
         </section>
       )}
+
+      <section className="space-y-3">
+        <h2 className="font-medium">Clarifications</h2>
+        <p className="text-xs text-zinc-500">
+          Ask how edge cases will be resolved before you bet. Answers from the market maker are highlighted.
+        </p>
+        {market.comments.length > 0 && (
+          <ul className="space-y-2">
+            {market.comments.map((c) => {
+              const fromMaker = c.userId === market.creator.id;
+              return (
+                <li key={c.id} className={`card py-2 ${fromMaker ? "border-amber-500/60" : ""}`}>
+                  <div className="flex items-baseline gap-2 text-xs text-zinc-500">
+                    <span className={fromMaker ? "font-medium text-amber-300" : "text-zinc-300"}>
+                      {c.user.name ?? "?"}
+                      {fromMaker && " · market maker"}
+                    </span>
+                    <span>{c.createdAt.toLocaleString()}</span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{c.body}</p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <ActionForm action={addComment} className="flex flex-col gap-2">
+          <input type="hidden" name="marketId" value={market.id} />
+          <textarea
+            name="body"
+            className="input min-h-20"
+            placeholder={isCreator ? "Clarify how this market resolves…" : "Ask a clarifying question…"}
+            maxLength={1000}
+            required
+          />
+          <button className="btn self-end">Post</button>
+        </ActionForm>
+      </section>
     </div>
   );
 }

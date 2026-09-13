@@ -244,6 +244,26 @@ export async function voidMarket(_prev: ActionState, formData: FormData): Promis
   return { ok: true };
 }
 
+// ---------- Comments ----------
+
+export async function addComment(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  let marketId: string;
+  try {
+    const user = await requireUser();
+    const data = z
+      .object({ marketId: z.string().min(1), body: z.string().trim().min(1).max(1000) })
+      .parse({ marketId: formData.get("marketId"), body: formData.get("body") });
+    marketId = data.marketId;
+    const market = await prisma.market.findUnique({ where: { id: marketId }, select: { id: true } });
+    if (!market) throw new Error("Market not found");
+    await prisma.comment.create({ data: { marketId, userId: user.id, body: data.body } });
+  } catch (e) {
+    return fail(e);
+  }
+  revalidatePath(`/markets/${marketId}`);
+  return { ok: true };
+}
+
 // ---------- Money ----------
 
 export async function requestPayment(_prev: ActionState, formData: FormData): Promise<ActionState> {
