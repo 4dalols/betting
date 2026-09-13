@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/lib/auth";
 
@@ -19,6 +20,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       >
         <button className="btn w-full">Continue with Google</button>
       </form>
+      <p className="mt-6 text-xs text-zinc-500">
+        <Link href="/privacy" className="hover:text-zinc-300">
+          Privacy policy
+        </Link>
+      </p>
     </div>
   );
 }
