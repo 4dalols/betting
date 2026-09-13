@@ -91,7 +91,7 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
               <p className="mt-1 text-xs text-zinc-500">
                 {isLiquid ? (
                   <>
-                    {formatCents(o.shares)} in shares held · {formatCents(t)} spent
+                    {formatCents(Math.floor(o.shares))} in shares held · {formatCents(t)} spent
                   </>
                 ) : (
                   <>
@@ -148,7 +148,7 @@ export default async function MarketPage({ params }: PageProps<"/markets/[id]">)
       {bettable && !isLiquid && !isFlip && !canBetMore && myBets.length > 0 && (
         <p className="text-sm text-zinc-500">You&apos;ve bet on as many outcomes as allowed for this market.</p>
       )}
-      {isFlip && !flipFilled && (
+      {isFlip && !flipFilled && market.status === "OPEN" && (
         <p className="text-sm text-zinc-500">
           {isCreator ? "Waiting for someone to take the other side." : "Only one person can take this flip."}
           {" "}If nobody does before it resolves, the stake is refunded.
