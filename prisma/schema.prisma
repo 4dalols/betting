@@ -72,6 +72,7 @@ model LedgerEntry {
   marketId   String?
   market     Market?    @relation(fields: [marketId], references: [id])
   note       String?
+  reversed   Boolean    @default(false)
   createdAt  DateTime   @default(now())
 
   @@index([userId, createdAt])
