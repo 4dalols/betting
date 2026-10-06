@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { adminAdjust, handlePayment } from "@/lib/actions";
+import { adminAdjust, handlePayment, resetBettingData } from "@/lib/actions";
 import { formatCents } from "@/lib/payout";
 import { ActionForm } from "@/components/ActionForm";
 
@@ -81,6 +81,17 @@ export default async function AdminPage() {
             </li>
           ))}
         </ul>
+      </section>
+      <section className="card border-red-500/20">
+        <h2 className="section-title mb-2 text-red-300">Danger zone</h2>
+        <p className="mb-3 text-sm text-zinc-400">
+          Wipe every market, bet, comment, ledger entry and payment request and zero all balances. Users and the
+          Price Is Right data are kept. This cannot be undone.
+        </p>
+        <ActionForm action={resetBettingData} className="flex flex-wrap gap-2" successMessage="Betting data cleared.">
+          <input name="confirm" className="input w-40" placeholder="Type RESET" autoComplete="off" required />
+          <button className="btn-ghost text-red-300 hover:border-red-500/40">Clear all betting data</button>
+        </ActionForm>
       </section>
     </div>
   );

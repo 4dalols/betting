@@ -14,5 +14,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|api/dev-login|login|privacy|_next|favicon.ico).*)"],
+  // The Price Is Right pages (/answer, /host, /game, /api/game) use their own password gate, not Auth.js.
+  matcher: ["/((?!api/auth|api/dev-login|api/game|login|privacy|answer|host|game|_next|favicon.ico).*)"],
 };
