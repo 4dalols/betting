@@ -433,3 +433,29 @@ export async function adminAdjust(_prev: ActionState, formData: FormData): Promi
   revalidatePath("/account");
   return { ok: true };
 }
+
+// ---------- Admin: wipe betting data ----------
+
+/** Deletes every market, bet, ledger entry and payment request and zeroes all balances. Users are kept. */
+export async function resetBettingData(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    await requireAdmin();
+    if (String(formData.get("confirm")).trim() !== "RESET") throw new Error('Type RESET to confirm');
+    await prisma.$transaction([
+      prisma.bet.deleteMany(),
+      prisma.comment.deleteMany(),
+      prisma.ledgerEntry.deleteMany(),
+      prisma.paymentRequest.deleteMany(),
+      prisma.outcome.deleteMany(),
+      prisma.market.deleteMany(),
+      prisma.user.updateMany({ data: { balanceCents: 0 } }),
+    ]);
+  } catch (e) {
+    return fail(e);
+  }
+  revalidatePath("/");
+  revalidatePath("/account");
+  revalidatePath("/admin");
+  revalidatePath("/leaderboard");
+  return { ok: true };
+}

@@ -195,3 +195,87 @@ model VerificationToken {
 
   @@id([identifier, token])
 }
+
+// ---------- Price Is Right game (zero-knowledge group survey) ----------
+
+enum GameStatus {
+  LOBBY
+  PLAYING
+  FINISHED
+}
+
+enum ScoringMode {
+  CLOSEST_WITHOUT_OVER
+  CLOSEST
+}
+
+/// A survey question. Only aggregates are stored — never an individual's answer.
+model Question {
+  id        String   @id @default(cuid())
+  prompt    String
+  unit      String?
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  sum       Float    @default(0)
+  answered  Int      @default(0)
+  skipped   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  rounds GameRound[]
+}
+
+model Game {
+  id           String      @id @default(cuid())
+  code         String      @unique
+  status       GameStatus  @default(LOBBY)
+  scoring      ScoringMode @default(CLOSEST_WITHOUT_OVER)
+  hostToken    String      @unique
+  currentRound Int         @default(0)
+  createdAt    DateTime    @default(now())
+
+  players GamePlayer[]
+  rounds  GameRound[]
+}
+
+model GamePlayer {
+  id       String   @id @default(cuid())
+  gameId   String
+  game     Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name     String
+  token    String   @unique
+  joinedAt DateTime @default(now())
+
+  guesses Guess[]
+
+  @@unique([gameId, name])
+}
+
+model GameRound {
+  id         String    @id @default(cuid())
+  gameId     String
+  game       Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question  @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  index      Int
+  revealedAt DateTime?
+  answerSum  Float?
+  answered   Int?
+  skipped    Int?
+
+  guesses Guess[]
+
+  @@unique([gameId, index])
+}
+
+model Guess {
+  id        String     @id @default(cuid())
+  roundId   String
+  round     GameRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    GamePlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  value     Float
+  points    Int        @default(0)
+  createdAt DateTime   @default(now())
+
+  @@unique([roundId, playerId])
+}

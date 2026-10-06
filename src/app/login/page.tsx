@@ -23,7 +23,17 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       >
         <button className="btn w-full">Continue with Google</button>
       </form>
-      <p className="mt-6 text-xs text-zinc-500">
+      <p className="mt-6 text-sm text-zinc-400">
+        Here for the Price Is Right game?{" "}
+        <Link href="/answer" className="text-amber-300 hover:underline">
+          Answer questions
+        </Link>{" "}
+        ·{" "}
+        <Link href="/game" className="text-amber-300 hover:underline">
+          Join a game
+        </Link>
+      </p>
+      <p className="mt-4 text-xs text-zinc-500">
         <Link href="/privacy" className="hover:text-zinc-300">
           Privacy policy
         </Link>

@@ -10,6 +10,23 @@ Paper-money parimutuel betting for a group of friends. Next.js 16 + Prisma 7 + P
 - **Admin override**: admins can re-resolve (reverses the earlier payouts) or void (refund everyone) any market.
 - **Money**: all balances are paper money tracked in an append-only ledger. Users file deposit/withdrawal requests (Zelle/Venmo/cash) and the admin approves them; the admin can also adjust any balance directly.
 
+## Price Is Right (group question game)
+
+A second, login-free system lives at `/answer`, `/game` and `/host`, gated by a shared password (`GAME_PASSWORD`;
+`GAME_HOST_PASSWORD` optionally protects `/host`).
+
+- **Answers are zero-knowledge.** `/answer` asks numeric questions ("How many siblings do you have?") with a
+  *Prefer not to answer* option. Submitting only increments per-question aggregates (`sum`, `answered`, `skipped`);
+  no individual answer is ever written anywhere. A cookie remembers which questions this browser already answered.
+- **Hosting.** `/host` adds/archives questions (showing how many answered, never the totals) and creates a game from a
+  set of questions, yielding a 4-letter code.
+- **Playing.** Players open `/game`, enter the code and a name. Each round shows a question; everyone locks in a guess
+  for the group total. The answer reveals automatically when everyone has guessed, or when the host force-reveals.
+  Scoring is *closest without going over* (Price Is Right rules) or *closest wins*, one point per round.
+- Live updates are polled from `GET /api/game/[code]` every 1.5s, so it works on Vercel without websockets.
+
+Admins can wipe all betting data (markets, bets, ledger, payments; balances zeroed) from the **Danger zone** on `/admin`.
+
 ## Local development
 
 ```bash

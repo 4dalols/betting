@@ -8,6 +8,7 @@ const links = [
   { href: "/markets/new", label: "New market" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/account", label: "Account" },
+  { href: "/answer", label: "Price Is Right" },
 ] as const;
 
 export async function Nav() {
