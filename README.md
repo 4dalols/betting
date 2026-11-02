@@ -25,6 +25,26 @@ A second, login-free system lives at `/answer`, `/game` and `/host`, gated by a 
   Scoring is *closest without going over* (Price Is Right rules) or *closest wins*, one point per round.
 - Live updates are polled from `GET /api/game/[code]` every 1.5s, so it works on Vercel without websockets.
 
+## Trade or Tighten (market-making game)
+
+A third login-free game lives at `/tt` (join) and `/tt/host` (create), behind the same `GAME_PASSWORD` /
+`GAME_HOST_PASSWORD` gate.
+
+- **Contract.** Each round is worth the sum of N hidden numbers (default 4) drawn from a public distribution:
+  skewed `⌈100·U²⌉` (mean ≈ 34) or uniform 1–100. Numbers are drawn when the game is created and never sent to
+  clients until the round settles.
+- **Info auction.** The numbers are sold one at a time (largest first, or random order) in sealed first- or
+  second-price auctions. The winner privately sees the value; everyone sees who won and the price. Bids are capped by
+  a bankroll (whole game, or reset each round). Closes early once everyone has bid or passed.
+- **Trade or tighten.** Several sub-rounds per contract (default 2). In the quote phase anyone posts `bid @ ask`;
+  each new quote must be at least X% (default 10%) tighter than the current best. The tightest quote at the buzzer
+  makes the market (no quotes → no market that sub-round). In the trade phase everyone else buys at the ask, sells at
+  the bid, or passes one lot; choices are revealed when the phase ends.
+- **Scoring.** Round PnL = trading PnL − info spend; ranked per round, total PnL wins.
+- Timers are enforced server-side: the state endpoint `GET /api/tt/[code]` (polled every second) advances an expired
+  phase, using `TtGame.seq` as an optimistic lock so concurrent pollers advance once. The host can skip a timer or
+  end the game. Rules live in `src/lib/tt.ts`, the phase machine and views in `src/lib/tt-state.ts`.
+
 Admins can wipe all betting data (markets, bets, ledger, payments; balances zeroed) from the **Danger zone** on `/admin`.
 
 ## Local development

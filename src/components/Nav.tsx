@@ -9,6 +9,7 @@ const links = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/account", label: "Account" },
   { href: "/answer", label: "Price Is Right" },
+  { href: "/tt", label: "Trade or Tighten" },
 ] as const;
 
 export async function Nav() {

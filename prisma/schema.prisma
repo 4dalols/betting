@@ -279,3 +279,150 @@ model Guess {
 
   @@unique([roundId, playerId])
 }
+
+// ---------- Trade or Tighten ----------
+
+enum TtPhase {
+  AUCTION
+  QUOTE
+  TRADE
+  RESULTS
+}
+
+enum TtDistribution {
+  SKEWED
+  UNIFORM
+}
+
+enum TtAuctionType {
+  FIRST_PRICE
+  SECOND_PRICE
+}
+
+enum TtSide {
+  BUY
+  SELL
+  PASS
+}
+
+model TtGame {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  hostToken   String     @unique
+  status      GameStatus @default(LOBBY)
+  createdAt   DateTime   @default(now())
+
+  // Settings
+  distribution   TtDistribution @default(SKEWED)
+  cardsPerRound  Int            @default(4)
+  itemsPerRound  Int            @default(4)
+  sortedInfo     Boolean        @default(true)
+  auctionType    TtAuctionType  @default(SECOND_PRICE)
+  bankroll       Int            @default(100)
+  resetBankroll  Boolean        @default(false)
+  subRounds      Int            @default(2)
+  tightenPct     Int            @default(10)
+  maxSpread      Float?
+  auctionSecs    Int            @default(30)
+  quoteSecs      Int            @default(30)
+  tradeSecs      Int            @default(30)
+
+  // Live state
+  currentRound Int       @default(0)
+  phase        TtPhase   @default(AUCTION)
+  itemIndex    Int       @default(0)
+  subRound     Int       @default(0)
+  phaseEndsAt  DateTime?
+  seq          Int       @default(0)
+
+  players TtPlayer[]
+  rounds  TtRound[]
+}
+
+model TtPlayer {
+  id       String   @id @default(cuid())
+  gameId   String
+  game     TtGame   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name     String
+  token    String   @unique
+  joinedAt DateTime @default(now())
+
+  wonItems TtInfoItem[]
+  bids     TtBid[]
+  quotes   TtQuote[]
+  trades   TtTrade[]
+
+  @@unique([gameId, name])
+}
+
+/// One contract: the sum of `cards`. Card values are never sent to clients before the round settles,
+/// except to the player who bought that card's info.
+model TtRound {
+  id        String    @id @default(cuid())
+  gameId    String
+  game      TtGame    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  index     Int
+  cards     Int[]
+  settledAt DateTime?
+
+  items  TtInfoItem[]
+  quotes TtQuote[]
+  trades TtTrade[]
+
+  @@unique([gameId, index])
+}
+
+model TtInfoItem {
+  id        String    @id @default(cuid())
+  roundId   String
+  round     TtRound   @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  index     Int
+  value     Int
+  winnerId  String?
+  winner    TtPlayer? @relation(fields: [winnerId], references: [id], onDelete: SetNull)
+  price     Float?
+  closedAt  DateTime?
+
+  bids TtBid[]
+
+  @@unique([roundId, index])
+}
+
+model TtBid {
+  id        String     @id @default(cuid())
+  itemId    String
+  item      TtInfoItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    TtPlayer   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  amount    Float
+  updatedAt DateTime   @updatedAt
+
+  @@unique([itemId, playerId])
+}
+
+model TtQuote {
+  id        String   @id @default(cuid())
+  roundId   String
+  round     TtRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  subRound  Int
+  playerId  String
+  player    TtPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  bid       Float
+  ask       Float
+  createdAt DateTime @default(now())
+
+  @@index([roundId, subRound])
+}
+
+model TtTrade {
+  id        String   @id @default(cuid())
+  roundId   String
+  round     TtRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  subRound  Int
+  playerId  String
+  player    TtPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  side      TtSide
+  createdAt DateTime @default(now())
+
+  @@unique([roundId, subRound, playerId])
+}
