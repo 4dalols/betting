@@ -284,6 +284,7 @@ model Guess {
 
 enum TtPhase {
   AUCTION
+  TIGHTEN
   QUOTE
   TRADE
   RESULTS
@@ -294,11 +295,6 @@ enum TtDistribution {
   UNIFORM
 }
 
-enum TtAuctionType {
-  FIRST_PRICE
-  SECOND_PRICE
-}
-
 enum TtSide {
   BUY
   SELL
@@ -306,37 +302,33 @@ enum TtSide {
 }
 
 model TtGame {
-  id          String     @id @default(cuid())
-  code        String     @unique
-  hostToken   String     @unique
-  status      GameStatus @default(LOBBY)
-  createdAt   DateTime   @default(now())
+  id        String     @id @default(cuid())
+  code      String     @unique
+  hostToken String     @unique
+  status    GameStatus @default(LOBBY)
+  createdAt DateTime   @default(now())
 
   // Settings
   distribution   TtDistribution @default(SKEWED)
+  totalRounds    Int            @default(4)
   cardsPerRound  Int            @default(4)
-  itemsPerRound  Int            @default(4)
-  sortedInfo     Boolean        @default(true)
-  auctionType    TtAuctionType  @default(SECOND_PRICE)
-  bankroll       Int            @default(100)
-  resetBankroll  Boolean        @default(false)
-  subRounds      Int            @default(2)
+  roomSize       Int            @default(4)
+  cycles         Int            @default(2)
   tightenPct     Int            @default(10)
-  maxSpread      Float?
-  auctionSecs    Int            @default(30)
-  quoteSecs      Int            @default(30)
+  auctionSecs    Int            @default(60)
+  decisionSecs   Int            @default(15)
   tradeSecs      Int            @default(30)
+  breakSecs      Int            @default(5)
+  roundBreakSecs Int            @default(20)
 
-  // Live state
-  currentRound Int       @default(0)
-  phase        TtPhase   @default(AUCTION)
-  itemIndex    Int       @default(0)
-  subRound     Int       @default(0)
-  phaseEndsAt  DateTime?
-  seq          Int       @default(0)
+  // Live state. Each room runs its own phase machine; the game only moves between rounds.
+  currentRound     Int       @default(0)
+  /// Set once every room in the current round has settled; the next round starts when it passes.
+  roundBreakEndsAt DateTime?
+  seq              Int       @default(0)
 
   players TtPlayer[]
-  rounds  TtRound[]
+  rooms   TtRoom[]
 }
 
 model TtPlayer {
@@ -345,84 +337,128 @@ model TtPlayer {
   game     TtGame   @relation(fields: [gameId], references: [id], onDelete: Cascade)
   name     String
   token    String   @unique
+  elo      Float    @default(1200)
   joinedAt DateTime @default(now())
 
+  seats    TtSeat[]
   wonItems TtInfoItem[]
   bids     TtBid[]
-  quotes   TtQuote[]
+  tightens TtTighten[]
+  markets  TtMarket[]
   trades   TtTrade[]
 
   @@unique([gameId, name])
 }
 
-/// One contract: the sum of `cards`. Card values are never sent to clients before the round settles,
-/// except to the player who bought that card's info.
-model TtRound {
+model TtRoom {
   id        String    @id @default(cuid())
   gameId    String
   game      TtGame    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  round     Int
   index     Int
   cards     Int[]
+  phase     TtPhase   @default(AUCTION)
+  cycle     Int       @default(0)
+  /// Inputs for the current phase are accepted from opensAt (after the between-phase break) until endsAt.
+  opensAt   DateTime  @default(now())
+  endsAt    DateTime?
+  seq       Int       @default(0)
   settledAt DateTime?
 
-  items  TtInfoItem[]
-  quotes TtQuote[]
-  trades TtTrade[]
+  seats    TtSeat[]
+  items    TtInfoItem[]
+  bids     TtBid[]
+  tightens TtTighten[]
+  markets  TtMarket[]
+  trades   TtTrade[]
 
-  @@unique([gameId, index])
+  @@unique([gameId, round, index])
 }
 
+/// A player's place in a room, plus their settled result for that round.
+model TtSeat {
+  id         String   @id @default(cuid())
+  roomId     String
+  room       TtRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  playerId   String
+  player     TtPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  eloBefore  Float
+  tradingPnl Float?
+  normalized Float?
+  cost       Float?
+  score      Float?
+  eloAfter   Float?
+
+  @@unique([roomId, playerId])
+}
+
+/// Info items in auction order: index 0 is the largest number.
 model TtInfoItem {
-  id        String    @id @default(cuid())
-  roundId   String
-  round     TtRound   @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  index     Int
-  value     Int
-  winnerId  String?
-  winner    TtPlayer? @relation(fields: [winnerId], references: [id], onDelete: SetNull)
-  price     Float?
-  closedAt  DateTime?
+  id       String    @id @default(cuid())
+  roomId   String
+  room     TtRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  index    Int
+  value    Int
+  winnerId String?
+  winner   TtPlayer? @relation(fields: [winnerId], references: [id], onDelete: SetNull)
+  price    Float?
 
-  bids TtBid[]
-
-  @@unique([roundId, index])
+  @@unique([roomId, index])
 }
 
+/// One sealed bid per item, submitted together: amounts[i] is the bid for info item i.
 model TtBid {
-  id        String     @id @default(cuid())
-  itemId    String
-  item      TtInfoItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  playerId  String
-  player    TtPlayer   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  amount    Float
-  updatedAt DateTime   @updatedAt
-
-  @@unique([itemId, playerId])
-}
-
-model TtQuote {
   id        String   @id @default(cuid())
-  roundId   String
-  round     TtRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  subRound  Int
+  roomId    String
+  room      TtRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
   playerId  String
   player    TtPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  bid       Float
-  ask       Float
+  amounts   Float[]
+  updatedAt DateTime @updatedAt
+
+  @@unique([roomId, playerId])
+}
+
+/// A spread-width proposal; width null means "I'm out" (won't tighten further).
+model TtTighten {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      TtRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  cycle     Int
+  playerId  String
+  player    TtPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  width     Float?
   createdAt DateTime @default(now())
 
-  @@index([roundId, subRound])
+  @@index([roomId, cycle])
+}
+
+/// The market for a cycle: maker and width are fixed by the tighten phase, bid/ask by the maker's quote.
+model TtMarket {
+  id      String   @id @default(cuid())
+  roomId  String
+  room    TtRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  cycle   Int
+  makerId String
+  maker   TtPlayer @relation(fields: [makerId], references: [id], onDelete: Cascade)
+  width   Float
+  bid     Float?
+  ask     Float?
+  /// The maker didn't quote in time, so the market was centered on the prior mean.
+  auto    Boolean  @default(false)
+
+  @@unique([roomId, cycle])
 }
 
 model TtTrade {
   id        String   @id @default(cuid())
-  roundId   String
-  round     TtRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  subRound  Int
+  roomId    String
+  room      TtRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  cycle     Int
   playerId  String
   player    TtPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
   side      TtSide
   createdAt DateTime @default(now())
 
-  @@unique([roundId, subRound, playerId])
+  @@unique([roomId, cycle, playerId])
 }

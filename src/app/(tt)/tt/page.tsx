@@ -31,19 +31,24 @@ export default async function TtIndexPage() {
       </div>
       <div className="card space-y-2 text-sm text-zinc-400">
         <h2 className="section-title">How it works</h2>
-        <p>Each round the contract is worth the sum of a few hidden random numbers.</p>
+        <p>Each round you&apos;re put in a room (about 4 players). The contract is worth the sum of four hidden random numbers.</p>
         <p>
-          <span className="text-zinc-200">Auction:</span> the numbers are sold one at a time in sealed-bid auctions. Win
-          one and you privately see its value.
+          <span className="text-zinc-200">Info auction:</span> bid for the largest, 2nd, 3rd and 4th largest number all at
+          once. They&apos;re settled largest first, second-price; each player wins at most one, so the last one left gets
+          theirs free. Your number is private.
         </p>
         <p>
-          <span className="text-zinc-200">Tighten:</span> anyone can quote a market (bid @ ask). Every new quote has to be
-          tighter than the last; the tightest one at the buzzer makes the market.
+          <span className="text-zinc-200">Trade or tighten:</span> propose a spread width; each one must be at least 10%
+          tighter. Whoever is tightest when everyone stops becomes the market maker and posts bid @ ask at that width.
         </p>
         <p>
-          <span className="text-zinc-200">Trade:</span> everyone else buys at the ask, sells at the bid, or passes.
+          <span className="text-zinc-200">Trade:</span> everyone else buys at the ask, sells at the bid, or passes. Then
+          tighten again.
         </p>
-        <p>At the end of the round the numbers are revealed. PnL = trading profit − what you spent on info.</p>
+        <p>
+          At the end of the round the sum is revealed. Trading PnL is scaled 0–100 within the room (best = 100, worst = 0),
+          minus what you paid for info. Rooms are reshuffled by Elo every round.
+        </p>
         <p className="pt-2 text-xs">
           Hosting? <Link href="/tt/host" className="text-sky-300 hover:underline">Create a game</Link>.
         </p>

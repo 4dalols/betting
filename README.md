@@ -30,20 +30,23 @@ A second, login-free system lives at `/answer`, `/game` and `/host`, gated by a 
 A third login-free game lives at `/tt` (join) and `/tt/host` (create), behind the same `GAME_PASSWORD` /
 `GAME_HOST_PASSWORD` gate.
 
-- **Contract.** Each round is worth the sum of N hidden numbers (default 4) drawn from a public distribution:
-  skewed `⌈100·U²⌉` (mean ≈ 34) or uniform 1–100. Numbers are drawn when the game is created and never sent to
-  clients until the round settles.
-- **Info auction.** The numbers are sold one at a time (largest first, or random order) in sealed first- or
-  second-price auctions. The winner privately sees the value; everyone sees who won and the price. Bids are capped by
-  a bankroll (whole game, or reset each round). Closes early once everyone has bid or passed.
-- **Trade or tighten.** Several sub-rounds per contract (default 2). In the quote phase anyone posts `bid @ ask`;
-  each new quote must be at least X% (default 10%) tighter than the current best. The tightest quote at the buzzer
-  makes the market (no quotes → no market that sub-round). In the trade phase everyone else buys at the ask, sells at
-  the bid, or passes one lot; choices are revealed when the phase ends.
-- **Scoring.** Round PnL = trading PnL − info spend; ranked per round, total PnL wins.
-- Timers are enforced server-side: the state endpoint `GET /api/tt/[code]` (polled every second) advances an expired
-  phase, using `TtGame.seq` as an optimistic lock so concurrent pollers advance once. The host can skip a timer or
-  end the game. Rules live in `src/lib/tt.ts`, the phase machine and views in `src/lib/tt-state.ts`.
+- **Rooms.** Players are split into rooms (default 4) at the start of each round: random in round 1, then by
+  per-game Elo (start 1200, updated from round scores within the room) so the strongest players sit together.
+- **Contract.** Each room's contract is the sum of N hidden numbers (default 4) drawn from a public distribution:
+  skewed `⌈100·U²⌉` (mean ≈ 34) or uniform 1–100. Numbers are never sent to clients until the room settles.
+- **Info auction.** Once per round, everyone submits bids (0–100) for the largest, 2nd, 3rd and 4th largest number at
+  once. Settled largest first, second-price among eligible players; a winner and their remaining bids drop out, so each
+  player wins at most one and the last player left gets theirs free.
+- **Trade or tighten × N cycles** (default 2). Players propose a spread *width*; each must be at least X% (default
+  10%) tighter. The decision timer restarts on every tighten and the phase ends early once everyone else says
+  "I'm out". The tightest player posts `bid @ bid+width` (auto-centered on the prior mean if they time out); everyone
+  else buys at the ask, sells at the bid, or passes one lot, revealed when trading ends. No proposals → no market.
+- **Scoring.** Trading PnL is normalized to 0–100 within the room (max = 100, min = 0, all equal = 50), then info cost
+  is subtracted. Round scores add up across rounds (default 4).
+- Timers are enforced server-side: the state endpoint `GET /api/tt/[code]` (polled every second) advances any expired
+  room phase or between-round break. Each room has its own `seq` + row lock so concurrent pollers advance once. The
+  host can watch any room, skip timers or end the game. Rules live in `src/lib/tt.ts`, the phase machine and views in
+  `src/lib/tt-state.ts`.
 
 Admins can wipe all betting data (markets, bets, ledger, payments; balances zeroed) from the **Danger zone** on `/admin`.
 
