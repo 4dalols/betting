@@ -29,14 +29,15 @@ export default async function TtGamePage({ params }: PageProps<"/tt/[code]">) {
         <p className="section-title">Trade or Tighten</p>
         <p className="font-mono text-4xl tracking-[0.3em] text-sky-300">{code}</p>
         <p className="text-sm text-zinc-400">
-          {view.players.length === 0
+          {view.standings.length === 0
             ? "Be the first to join."
-            : `${view.players.length} already in: ${view.players.map((p) => p.name).join(", ")}`}
+            : `${view.standings.length} already in: ${view.standings.map((p) => p.name).join(", ")}`}
         </p>
         <ActionForm action={joinTtGame} className="space-y-3">
           <input type="hidden" name="code" value={code} />
           <input className="input text-center" name="name" placeholder="Your name" maxLength={30} autoFocus required />
           <button className="btn w-full">Join</button>
+          {view.status === "PLAYING" && <p className="text-xs text-zinc-500">Game in progress — you&apos;ll be seated next round.</p>}
         </ActionForm>
       </div>
     );

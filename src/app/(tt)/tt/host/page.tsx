@@ -27,7 +27,7 @@ export default async function TtHostPage() {
     where: { status: { not: "FINISHED" } },
     orderBy: { createdAt: "desc" },
     take: 5,
-    select: { code: true, status: true, _count: { select: { players: true, rounds: true } } },
+    select: { code: true, status: true, totalRounds: true, _count: { select: { players: true } } },
   });
 
   return (
@@ -43,10 +43,16 @@ export default async function TtHostPage() {
       <div className="grid gap-6 md:grid-cols-3">
         <ActionForm action={createTtGame} className="card space-y-6 md:col-span-2">
           <section className="space-y-3">
-            <h2 className="section-title">Contract</h2>
+            <h2 className="section-title">Game</h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Rounds">
-                <input className="input" name="rounds" type="number" min={1} max={20} defaultValue={4} required />
+                <input className="input" name="totalRounds" type="number" min={1} max={20} defaultValue={4} required />
+              </Field>
+              <Field label="Players per room" hint="Rooms are re-drawn by Elo each round">
+                <input className="input" name="roomSize" type="number" min={2} max={12} defaultValue={4} required />
+              </Field>
+              <Field label="Tighten → trade cycles">
+                <input className="input" name="cycles" type="number" min={1} max={10} defaultValue={2} required />
               </Field>
               <Field label="Numbers per contract">
                 <input className="input" name="cardsPerRound" type="number" min={1} max={10} defaultValue={4} required />
@@ -57,56 +63,29 @@ export default async function TtHostPage() {
                   <option value="UNIFORM">Uniform 1–100 (mean 50.5)</option>
                 </select>
               </Field>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="section-title">Info auction</h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Numbers auctioned" hint="0 skips the auction">
-                <input className="input" name="itemsPerRound" type="number" min={0} max={10} defaultValue={4} required />
-              </Field>
-              <Field label="Order">
-                <select className="input" name="infoOrder" defaultValue="sorted">
-                  <option value="sorted">Largest first (public)</option>
-                  <option value="random">Random</option>
-                </select>
-              </Field>
-              <Field label="Format">
-                <select className="input" name="auctionType" defaultValue="SECOND_PRICE">
-                  <option value="SECOND_PRICE">Second price (sealed)</option>
-                  <option value="FIRST_PRICE">First price (sealed)</option>
-                </select>
-              </Field>
-              <Field label="Bankroll ($)" hint="Caps what you can bid">
-                <input className="input" name="bankroll" type="number" min={0} defaultValue={100} required />
-              </Field>
-              <Field label="Seconds per auction">
-                <input className="input" name="auctionSecs" type="number" min={5} max={600} defaultValue={30} required />
-              </Field>
-              <label className="flex items-center gap-2 self-center pt-4 text-sm text-zinc-300">
-                <input type="checkbox" name="resetBankroll" className="size-4 accent-sky-400" /> Reset bankroll each round
-              </label>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="section-title">Trade or tighten</h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="T-or-T rounds per contract">
-                <input className="input" name="subRounds" type="number" min={1} max={5} defaultValue={2} required />
-              </Field>
               <Field label="Tighten by at least (%)">
                 <input className="input" name="tightenPct" type="number" min={0} max={90} defaultValue={10} required />
               </Field>
-              <Field label="Max opening spread" hint="Blank = no limit">
-                <input className="input" name="maxSpread" type="number" min={0} step="any" placeholder="none" />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="section-title">Timers (seconds)</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Info auction">
+                <input className="input" name="auctionSecs" type="number" min={10} max={600} defaultValue={60} required />
               </Field>
-              <Field label="Seconds to quote">
-                <input className="input" name="quoteSecs" type="number" min={5} max={600} defaultValue={30} required />
+              <Field label="Tighten decision" hint="Restarts on every tighten; also the market maker’s time to quote">
+                <input className="input" name="decisionSecs" type="number" min={5} max={300} defaultValue={15} required />
               </Field>
-              <Field label="Seconds to trade">
+              <Field label="Trading">
                 <input className="input" name="tradeSecs" type="number" min={5} max={600} defaultValue={30} required />
+              </Field>
+              <Field label="Between phases">
+                <input className="input" name="breakSecs" type="number" min={0} max={60} defaultValue={5} required />
+              </Field>
+              <Field label="Between rounds">
+                <input className="input" name="roundBreakSecs" type="number" min={0} max={600} defaultValue={20} required />
               </Field>
             </div>
           </section>
@@ -126,7 +105,7 @@ export default async function TtHostPage() {
                     {g.code}
                   </Link>
                   <span className="text-zinc-500">
-                    {g.status === "LOBBY" ? "lobby" : "playing"} · {g._count.players} players · {g._count.rounds} rounds
+                    {g.status === "LOBBY" ? "lobby" : "playing"} · {g._count.players} players · {g.totalRounds} rounds
                   </span>
                 </li>
               ))}
