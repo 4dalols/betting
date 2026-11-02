@@ -4,6 +4,7 @@ const links = [
   { href: "/answer", label: "Answer" },
   { href: "/game", label: "Play" },
   { href: "/host", label: "Host" },
+  { href: "/tt", label: "Trade or Tighten" },
 ] as const;
 
 export default function PirLayout({ children }: { children: React.ReactNode }) {
