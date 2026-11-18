@@ -122,6 +122,11 @@ export async function endGame(gameId: string) {
     }
     if (game.status !== "PLAYING") return;
     const now = Date.now();
+    if (now >= game.endsAt!.getTime()) {
+      const { state } = await catchUp(tx, game, now);
+      await save(tx, game, state, true, now);
+      return;
+    }
     const elapsed = now - game.startedAt!.getTime();
     // Shorten the case to what has been played so settlement and the revealed path match.
     const caseSecs = Math.max(1, Math.ceil(elapsed / 1000));
