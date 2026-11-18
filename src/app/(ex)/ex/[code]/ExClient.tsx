@@ -241,7 +241,7 @@ function Trading({ view, pending, run, notice }: { view: ExView; pending: boolea
         role="button"
         tabIndex={0}
         onClick={() => !pending && quick(l, rowBuy)}
-        onKeyDown={(e) => e.key === "Enter" && !pending && quick(l, rowBuy)}
+        onKeyDown={(e) => e.target === e.currentTarget && e.key === "Enter" && !pending && quick(l, rowBuy)}
         className={`grid cursor-pointer grid-cols-[4rem_1fr_1fr] items-center gap-2 px-2 py-0.5 hover:bg-white/5 ${l.price === view.last ? "bg-white/[0.04]" : ""}`}
       >
         <button
