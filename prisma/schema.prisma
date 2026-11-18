@@ -462,3 +462,44 @@ model TtTrade {
 
   @@unique([roomId, cycle, playerId])
 }
+
+// ---------- Exchange (continuous order book vs bots, after Mangocore) ----------
+
+model ExGame {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  hostToken String     @unique
+  status    GameStatus @default(LOBBY)
+  createdAt DateTime   @default(now())
+
+  caseSecs      Int @default(600)
+  stepSecs      Int @default(60)
+  customerRate  Int @default(10)
+  positionLimit Int @default(1000000)
+  maxOrderSize  Int @default(1000)
+  maxOpenOrders Int @default(100)
+  seed          Int @default(0)
+
+  startedAt  DateTime?
+  endsAt     DateTime?
+  seq        Int       @default(0)
+  /// Engine state (books, accounts, chart); see src/lib/ex.ts. Rewritten under a row lock.
+  state      Json?
+  /// Wall-clock time the state was last advanced to.
+  advancedAt DateTime?
+
+  players ExPlayer[]
+}
+
+model ExPlayer {
+  id       String   @id @default(cuid())
+  gameId   String
+  game     ExGame   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name     String
+  token    String   @unique
+  joinedAt DateTime @default(now())
+  /// Final PnL, written when the game finishes.
+  pnl      Float?
+
+  @@unique([gameId, name])
+}
