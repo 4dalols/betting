@@ -48,6 +48,26 @@ A third login-free game lives at `/tt` (join) and `/tt/host` (create), behind th
   host can watch any room, skip timers or end the game. Rules live in `src/lib/tt.ts`, the phase machine and views in
   `src/lib/tt-state.ts`.
 
+## Exchange (Mangocore preliminary case)
+
+A fourth game at `/ex` (join) and `/ex/host` (create), behind the same `GAME_PASSWORD` / `GAME_HOST_PASSWORD` gate. It
+recreates the single-contract preliminary case of Traders@MIT's Mangocore simulator (`python-rewrite-new-ui-2`).
+
+- **Contract.** One ticker, `A`, integer prices 1–100. Hidden fair value θ starts U{40..60} and moves U{-5..5}
+  (clipped) every step (default 60 s) of a 600 s case.
+- **Bots.** A market maker quotes 1,000 lots at every price but its center (bids below, asks above), centered on θ at
+  the open and then re-centered on the *previous* θ each time θ changes. Customers send 10-lot orders within ±5 of θ,
+  buy or sell 50/50, ten a second.
+- **Trading.** Limit orders matched by price-time priority at the resting price; ladder quick orders (± edge) and
+  fair-side Buy/Sell buttons; cancel / cancel all. Limits: max order size, max open orders, and long and short
+  exposure (incl. open orders) each within the risk limit.
+- **Scoring.** 100,000 starting cash; P&L marks to the last traded price during the case and at the bell. The host
+  sees fair, the scoreboard and P&L history; the fair path is revealed at the end.
+- **Serverless.** The bots are generated from a per-game seed and replayed up to "now" on every request, so no
+  background process is needed. Each game's book lives in `ExGame.state`; actions take the row lock, pollers use
+  `SKIP LOCKED`, and players are limited to 5 actions a second. Engine in `src/lib/ex.ts`, persistence and views in
+  `src/lib/ex-state.ts`.
+
 Admins can wipe all betting data (markets, bets, ledger, payments; balances zeroed) from the **Danger zone** on `/admin`.
 
 ## Local development
