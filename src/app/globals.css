@@ -36,6 +36,9 @@ body {
 .card {
   @apply rounded-2xl border border-white/10 bg-zinc-900/60 p-5 shadow-xl shadow-black/20 backdrop-blur-sm transition;
 }
+.panel {
+  @apply rounded-xl border border-white/10 bg-zinc-900/60 p-3 shadow-xl shadow-black/20 backdrop-blur-sm;
+}
 .pill {
   @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ring-white/10;
 }

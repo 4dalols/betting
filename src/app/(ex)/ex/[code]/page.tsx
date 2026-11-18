@@ -13,7 +13,7 @@ export const metadata = { title: "Exchange" };
 export default async function ExGamePage({ params }: PageProps<"/ex/[code]">) {
   const code = normalizeCode((await params).code);
   if (!gateConfigured())
-    return <p className="card text-sm text-amber-300">Set GAME_PASSWORD in the environment to enable the games.</p>;
+    return <p className="card mx-auto mt-6 max-w-xl text-sm text-amber-300">Set GAME_PASSWORD in the environment to enable the games.</p>;
   if (!(await hasAccess("member")))
     return <PasswordGate role="member" next={`/ex/${code}`} title={`Game ${code}`} blurb="Enter the group password to play." />;
 

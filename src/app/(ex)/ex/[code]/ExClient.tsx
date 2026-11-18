@@ -60,53 +60,44 @@ export function ExClient({ initial }: { initial: ExView }) {
 
   const serverNow = now + offset;
 
+  const playing = view.status === "PLAYING";
+  const errorBox = error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="section-title">Game code</p>
-          <p className="font-mono text-3xl tracking-[0.3em] text-sky-300">{view.code}</p>
-        </div>
-        <div className="text-right text-sm text-zinc-500">
-          {view.me && (
-            <p className="text-zinc-400">
-              Trading as {view.me.name}
-              {view.isHost && " · host"}
-            </p>
-          )}
-          {!view.me && view.isHost && <p className="text-zinc-400">Hosting</p>}
-        </div>
-      </div>
-
-      {view.status !== "LOBBY" && view.startedAt !== null && <StatusStrip view={view} serverNow={serverNow} />}
-
-      {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
-
+    <div className={playing ? "flex flex-col gap-3 xl:h-[calc(100dvh-5rem)]" : "mx-auto max-w-6xl space-y-6 py-4"}>
+      <StatusStrip view={view} serverNow={serverNow} />
+      {!(playing && view.me) && errorBox}
       {view.status === "LOBBY" && <Lobby view={view} pending={pending} run={run} />}
-
-      {view.status === "PLAYING" && (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-2">
-            <Trading view={view} pending={pending} run={run} notice={notice} />
-            <div className="card space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="section-title">{view.ticker} price</h2>
-                <span className="text-xs text-zinc-500">
-                  <span className="text-sky-300">mid</span> · <span className="text-zinc-300">last</span> · volume{" "}
-                  {view.volume.toLocaleString("en-US")}
-                </span>
-              </div>
-              <Chart points={view.chart} caseSecs={view.settings.caseSecs} />
-            </div>
-          </div>
-          <div className="space-y-6">
-            {view.isHost && <HostPanel view={view} pending={pending} run={run} />}
-            {view.me && <Orders view={view} pending={pending} run={run} />}
-          </div>
-        </div>
-      )}
-
+      {playing && <Desk view={view} pending={pending} run={run} notice={notice} error={errorBox} />}
       {view.status === "FINISHED" && <Results view={view} />}
+    </div>
+  );
+}
+
+function Desk({ view, pending, run, notice, error }: { view: ExView; pending: boolean; run: Run; notice: string | null; error: React.ReactNode }) {
+  const cols =
+    view.me && view.isHost
+      ? "xl:grid-cols-[16rem_minmax(17rem,21rem)_minmax(0,1fr)_minmax(18rem,22rem)]"
+      : view.me
+        ? "xl:grid-cols-[17rem_minmax(19rem,24rem)_minmax(0,1fr)]"
+        : "xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)_minmax(20rem,24rem)]";
+  return (
+    <div className={`grid min-h-0 flex-1 gap-3 lg:grid-cols-2 ${cols}`}>
+      <Trading view={view} pending={pending} run={run} notice={notice} error={error} />
+      <div className="flex min-h-0 flex-col gap-3">
+        <div className="panel space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="section-title">{view.ticker} price</h2>
+            <span className="text-xs text-zinc-500">
+              <span className="text-sky-300">mid</span> · <span className="text-zinc-300">last</span> · volume{" "}
+              {view.volume.toLocaleString("en-US")}
+            </span>
+          </div>
+          <Chart points={view.chart} caseSecs={view.settings.caseSecs} className="h-40 xl:h-48" />
+        </div>
+        {view.me && <Orders view={view} pending={pending} run={run} />}
+      </div>
+      {view.isHost && <HostPanel view={view} pending={pending} run={run} />}
     </div>
   );
 }
@@ -123,35 +114,45 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 function StatusStrip({ view, serverNow }: { view: ExView; serverNow: number }) {
   const me = view.me;
   return (
-    <div className="card flex flex-wrap items-center gap-x-8 gap-y-3 py-3">
-      <Stat label="Case">
-        {view.status === "PLAYING" && view.endsAt ? (
-          <span className="text-emerald-300">Live · {clock(view.endsAt - serverNow)}</span>
-        ) : (
-          <span className="text-zinc-400">Closed</span>
-        )}
+    <div className="panel flex flex-wrap items-center gap-x-8 gap-y-2 py-2">
+      <Stat label="Game code">
+        <span className="tracking-[0.25em] text-sky-300">{view.code}</span>
       </Stat>
-      <Stat label={view.ticker}>
-        {view.last}
-        <span className="ml-2 text-xs text-zinc-500">last</span>
-      </Stat>
-      {me && (
+      {view.startedAt !== null && (
         <>
-          <Stat label="P&L">
-            <span className={signedClass(me.pnl)}>{formatSignedMoney(me.pnl)}</span>
+          <Stat label="Case">
+            {view.status === "PLAYING" && view.endsAt ? (
+              <span className="text-emerald-300">Live · {clock(view.endsAt - serverNow)}</span>
+            ) : (
+              <span className="text-zinc-400">Closed</span>
+            )}
           </Stat>
-          <Stat label="Position">
-            <span className={signedClass(me.pos)}>{signed(me.pos)}</span>
+          <Stat label={view.ticker}>
+            {view.last}
+            <span className="ml-2 text-xs text-zinc-500">last</span>
           </Stat>
-          <Stat label="Cash">{formatMoney(me.cash)}</Stat>
-          {view.status === "PLAYING" && (
-            <Stat label="Open orders">
-              {me.orders.length}
-              <span className="text-xs text-zinc-500">/{view.settings.maxOpenOrders}</span>
-            </Stat>
+          {me && (
+            <>
+              <Stat label="P&L">
+                <span className={signedClass(me.pnl)}>{formatSignedMoney(me.pnl)}</span>
+              </Stat>
+              <Stat label="Position">
+                <span className={signedClass(me.pos)}>{signed(me.pos)}</span>
+              </Stat>
+              <Stat label="Cash">{formatMoney(me.cash)}</Stat>
+              {view.status === "PLAYING" && (
+                <Stat label="Open orders">
+                  {me.orders.length}
+                  <span className="text-xs text-zinc-500">/{view.settings.maxOpenOrders}</span>
+                </Stat>
+              )}
+            </>
           )}
         </>
       )}
+      <p className="ml-auto text-sm text-zinc-400">
+        {me ? `Trading as ${me.name}${view.isHost ? " · host" : ""}` : view.isHost ? "Hosting" : null}
+      </p>
     </div>
   );
 }
@@ -209,7 +210,8 @@ const validInt = (v: string, min: number, max: number) => {
   return Number.isInteger(n) && n >= min && n <= max ? n : null;
 };
 
-function Trading({ view, pending, run, notice }: { view: ExView; pending: boolean; run: Run; notice: string | null }) {
+function Trading({ view, pending, run, notice, error }: { view: ExView; pending: boolean; run: Run; notice: string | null; error: React.ReactNode }) {
+  const canTrade = view.me !== null;
   const maxQty = view.settings.maxOrderSize;
   const [bidQty, setBidQty] = useState("10");
   const [askQty, setAskQty] = useState("10");
@@ -238,15 +240,15 @@ function Trading({ view, pending, run, notice }: { view: ExView; pending: boolea
     return (
       <div
         key={`${rowBuy ? "b" : "a"}${l.price}`}
-        role="button"
-        tabIndex={0}
-        onClick={() => !pending && quick(l, rowBuy)}
-        onKeyDown={(e) => e.target === e.currentTarget && e.key === "Enter" && !pending && quick(l, rowBuy)}
-        className={`grid cursor-pointer grid-cols-[4rem_1fr_1fr] items-center gap-2 px-2 py-0.5 hover:bg-white/5 ${l.price === view.last ? "bg-white/[0.04]" : ""}`}
+        role={canTrade ? "button" : undefined}
+        tabIndex={canTrade ? 0 : undefined}
+        onClick={() => canTrade && !pending && quick(l, rowBuy)}
+        onKeyDown={(e) => canTrade && e.target === e.currentTarget && e.key === "Enter" && !pending && quick(l, rowBuy)}
+        className={`grid grid-cols-[4rem_1fr_1fr] items-center gap-2 px-2 py-px ${canTrade ? "cursor-pointer hover:bg-white/5" : ""} ${l.price === view.last ? "bg-white/[0.04]" : ""}`}
       >
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !canTrade}
           onClick={(e) => {
             e.stopPropagation();
             fairSide(l);
@@ -268,70 +270,78 @@ function Trading({ view, pending, run, notice }: { view: ExView; pending: boolea
   const bids = view.bids.slice(0, levels);
   const spread = view.bids[0] && view.asks[0] ? view.asks[0].price - view.bids[0].price : null;
 
+  const settings = (
+    <div className="grid grid-cols-2 gap-2">
+      <NumberField label="Quick-order edge" value={edge} onChange={setEdge} min={-PRICE_MAX} max={PRICE_MAX} />
+      <NumberField label={`Levels (max ${MAX_LEVELS})`} value={depth} onChange={setDepth} min={1} max={MAX_LEVELS} />
+    </div>
+  );
+
   return (
-    <div className="card grid gap-6 sm:grid-cols-5">
-      <div className="space-y-2 sm:col-span-3">
+    <>
+      {canTrade && (
+        <div className="panel flex min-h-0 flex-col gap-4 overflow-y-auto">
+          <section className="space-y-2">
+            <h2 className="section-title">Place order</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField label="Buy qty" value={bidQty} onChange={setBidQty} min={1} max={maxQty} />
+              <NumberField label="@ price" value={bidPrice} onChange={setBidPrice} min={PRICE_MIN} max={PRICE_MAX} />
+            </div>
+            <button type="button" className="btn btn-buy w-full" disabled={pending || bq === null || validInt(bidPrice, PRICE_MIN, PRICE_MAX) === null} onClick={() => order(true, validInt(bidPrice, PRICE_MIN, PRICE_MAX), bq)}>
+              Buy
+            </button>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <NumberField label="Sell qty" value={askQty} onChange={setAskQty} min={1} max={maxQty} />
+              <NumberField label="@ price" value={askPrice} onChange={setAskPrice} min={PRICE_MIN} max={PRICE_MAX} />
+            </div>
+            <button type="button" className="btn btn-sell w-full" disabled={pending || aq === null || validInt(askPrice, PRICE_MIN, PRICE_MAX) === null} onClick={() => order(false, validInt(askPrice, PRICE_MIN, PRICE_MAX), aq)}>
+              Sell
+            </button>
+            {notice && !pending && <p className="text-xs text-sky-300">{notice}</p>}
+            {error}
+          </section>
+          <section className="space-y-2">
+            <h2 className="section-title">Ladder</h2>
+            {settings}
+            <p className="text-xs text-zinc-500">
+              A bid row buys at its price + edge with the buy qty; an ask row sells at its price − edge with the sell qty.
+              Buy/Sell trades at that price on the fair side of the mid.
+            </p>
+          </section>
+          <button type="button" className="btn-ghost mt-auto w-full" disabled={pending} onClick={() => run(() => exTrade(view.code, { kind: "cancelAll" }))}>
+            Cancel all orders
+          </button>
+        </div>
+      )}
+
+      <div className="panel flex min-h-0 flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 className="section-title">{view.ticker} ladder</h2>
-          <span className="text-xs text-zinc-500">[yours] · click a row for a quick order</span>
+          <span className="text-xs text-zinc-500">{canTrade ? "[yours] · click a row for a quick order" : "Spectating"}</span>
         </div>
         <div className="grid grid-cols-[4rem_1fr_1fr] gap-2 px-2 text-[11px] uppercase tracking-wider text-zinc-500">
           <span>Fair side</span>
           <span className="text-center">Price</span>
           <span className="text-right">Size</span>
         </div>
-        <div className="rounded-lg border border-white/5 font-mono text-sm">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/5 font-mono text-sm">
           {asks.map((l) => row(l, false))}
-          <div className="border-y border-white/10 bg-white/[0.03] px-2 py-1 text-center text-xs text-zinc-400">
+          <div className="border-y border-white/10 bg-white/[0.03] px-2 py-0.5 text-center text-xs text-zinc-400">
             {spread === null ? "One-sided book" : `Spread ${spread} · mid ${view.mid}`}
           </div>
           {bids.map((l) => row(l, true))}
         </div>
+        {!canTrade && settings}
       </div>
-
-      <div className="space-y-4 sm:col-span-2">
-        <section className="space-y-2">
-          <h2 className="section-title">Place order</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <NumberField label="Buy qty" value={bidQty} onChange={setBidQty} min={1} max={maxQty} />
-            <NumberField label="@ price" value={bidPrice} onChange={setBidPrice} min={PRICE_MIN} max={PRICE_MAX} />
-          </div>
-          <button type="button" className="btn btn-buy w-full" disabled={pending || bq === null || validInt(bidPrice, PRICE_MIN, PRICE_MAX) === null} onClick={() => order(true, validInt(bidPrice, PRICE_MIN, PRICE_MAX), bq)}>
-            Buy
-          </button>
-          <div className="grid grid-cols-2 gap-2">
-            <NumberField label="Sell qty" value={askQty} onChange={setAskQty} min={1} max={maxQty} />
-            <NumberField label="@ price" value={askPrice} onChange={setAskPrice} min={PRICE_MIN} max={PRICE_MAX} />
-          </div>
-          <button type="button" className="btn btn-sell w-full" disabled={pending || aq === null || validInt(askPrice, PRICE_MIN, PRICE_MAX) === null} onClick={() => order(false, validInt(askPrice, PRICE_MIN, PRICE_MAX), aq)}>
-            Sell
-          </button>
-          {notice && !pending && <p className="text-xs text-sky-300">{notice}</p>}
-        </section>
-        <section className="space-y-2">
-          <h2 className="section-title">Ladder</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <NumberField label="Quick-order edge" value={edge} onChange={setEdge} min={-PRICE_MAX} max={PRICE_MAX} />
-            <NumberField label={`Levels (max ${MAX_LEVELS})`} value={depth} onChange={setDepth} min={1} max={MAX_LEVELS} />
-          </div>
-          <p className="text-xs text-zinc-500">
-            A bid row buys at its price + edge with the buy qty; an ask row sells at its price − edge with the sell qty.
-            Buy/Sell trades at that price on the fair side of the mid.
-          </p>
-        </section>
-        <button type="button" className="btn-ghost w-full" disabled={pending} onClick={() => run(() => exTrade(view.code, { kind: "cancelAll" }))}>
-          Cancel all orders
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
 function Orders({ view, pending, run }: { view: ExView; pending: boolean; run: Run }) {
   const me = view.me!;
   return (
-    <>
-      <div className="card space-y-2">
+    <div className="grid min-h-0 flex-1 gap-3 sm:grid-cols-2">
+      <div className="panel flex min-h-0 flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 className="section-title">Open orders ({me.orders.length})</h2>
           {me.orders.length > 0 && (
@@ -343,7 +353,7 @@ function Orders({ view, pending, run }: { view: ExView; pending: boolean; run: R
         {me.orders.length === 0 ? (
           <p className="text-sm text-zinc-500">None.</p>
         ) : (
-          <ul className="max-h-64 space-y-1 overflow-y-auto font-mono text-sm">
+          <ul className="max-h-64 min-h-0 flex-1 space-y-1 overflow-y-auto font-mono text-sm xl:max-h-none">
             {me.orders.map((o) => (
               <li key={o.id} className="flex items-center gap-2">
                 <span className={o.buy ? "text-emerald-300" : "text-red-300"}>{o.buy ? "BUY" : "SELL"}</span>
@@ -362,12 +372,12 @@ function Orders({ view, pending, run }: { view: ExView; pending: boolean; run: R
         </p>
       </div>
 
-      <div className="card space-y-2">
+      <div className="panel flex min-h-0 flex-col gap-2">
         <h2 className="section-title">Fills</h2>
         {me.fills.length === 0 ? (
           <p className="text-sm text-zinc-500">None yet.</p>
         ) : (
-          <ul className="max-h-56 space-y-1 overflow-y-auto font-mono text-sm">
+          <ul className="max-h-64 min-h-0 flex-1 space-y-1 overflow-y-auto font-mono text-sm xl:max-h-none">
             {me.fills.map((f) => (
               <li key={`${f.id}-${f.buy}`} className="flex gap-2">
                 <span className="w-10 text-zinc-500">{clock(f.at)}</span>
@@ -381,7 +391,7 @@ function Orders({ view, pending, run }: { view: ExView; pending: boolean; run: R
         )}
         <p className="text-xs text-zinc-500">Most recent 50.</p>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -407,7 +417,7 @@ function HostPanel({ view, pending, run }: { view: ExView; pending: boolean; run
   const [showPos, setShowPos] = useState(true);
   const [showCash, setShowCash] = useState(false);
   return (
-    <div className="card space-y-3">
+    <div className="panel flex min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="section-title">Scoreboard</h2>
         <span className="pill bg-amber-400/10 text-amber-300">Fair now: {view.fairNow ?? "—"}</span>
@@ -420,8 +430,10 @@ function HostPanel({ view, pending, run }: { view: ExView; pending: boolean; run
           <input type="checkbox" className="accent-sky-400" checked={showCash} onChange={(e) => setShowCash(e.target.checked)} /> Cash
         </label>
       </div>
-      {view.standings && <Standings rows={view.standings} detail={{ position: showPos, cash: showCash }} />}
       {view.pnlHistory && <PnlChart history={view.pnlHistory} caseSecs={view.settings.caseSecs} />}
+      <div className="max-h-96 min-h-0 flex-1 overflow-y-auto xl:max-h-none">
+        {view.standings && <Standings rows={view.standings} detail={{ position: showPos, cash: showCash }} />}
+      </div>
       <button
         className="btn-ghost w-full"
         disabled={pending}
@@ -502,11 +514,23 @@ function PnlChart({ history, caseSecs }: { history: NonNullable<ExView["pnlHisto
   );
 }
 
-function Chart({ points, caseSecs, fair, stepSecs }: { points: [number, number | null, number | null][]; caseSecs: number; fair?: number[]; stepSecs?: number }) {
+function Chart({
+  points,
+  caseSecs,
+  fair,
+  stepSecs,
+  className = "h-[180px]",
+}: {
+  points: [number, number | null, number | null][];
+  caseSecs: number;
+  fair?: number[];
+  stepSecs?: number;
+  className?: string;
+}) {
   const W = 600;
   const H = 180;
   const values = [...points.flatMap(([, m, l]) => [m, l].filter((v): v is number => v !== null)), ...(fair ?? [])];
-  if (values.length === 0) return <div className="grid h-[180px] place-items-center text-sm text-zinc-500">No prices yet.</div>;
+  if (values.length === 0) return <div className={`grid place-items-center text-sm text-zinc-500 ${className}`}>No prices yet.</div>;
   const lo = Math.max(PRICE_MIN, Math.min(...values) - 3);
   const hi = Math.min(PRICE_MAX, Math.max(...values) + 3);
   const x = (sec: number) => (sec / caseSecs) * W;
@@ -519,7 +543,7 @@ function Chart({ points, caseSecs, fair, stepSecs }: { points: [number, number |
       : null;
   const grid = [lo, Math.round((lo + hi) / 2), hi];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-[180px] w-full" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${W} ${H}`} className={`w-full ${className}`} preserveAspectRatio="none">
       {grid.map((g) => (
         <g key={g}>
           <line x1={0} x2={W} y1={y(g)} y2={y(g)} stroke="rgba(255,255,255,0.06)" />
