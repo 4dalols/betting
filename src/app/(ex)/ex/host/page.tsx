@@ -19,7 +19,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 export default async function ExHostPage() {
   if (!gateConfigured())
-    return <p className="card text-sm text-amber-300">Set GAME_PASSWORD in the environment to enable the games.</p>;
+    return <p className="card mx-auto mt-6 max-w-xl text-sm text-amber-300">Set GAME_PASSWORD in the environment to enable the games.</p>;
   if (!(await hasAccess("host")))
     return <PasswordGate role="host" next="/ex/host" title="Host" blurb="Enter the host password to create Exchange games." />;
 
@@ -31,7 +31,7 @@ export default async function ExHostPage() {
   });
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8 py-5">
       <div>
         <h1 className="page-title">Host an Exchange</h1>
         <p className="mt-1 text-sm text-zinc-500">

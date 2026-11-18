@@ -7,7 +7,7 @@ export const metadata = { title: "Play — Exchange" };
 
 export default async function ExIndexPage() {
   if (!gateConfigured())
-    return <p className="card text-sm text-amber-300">Set GAME_PASSWORD in the environment to enable the games.</p>;
+    return <p className="card mx-auto mt-6 max-w-xl text-sm text-amber-300">Set GAME_PASSWORD in the environment to enable the games.</p>;
   if (!(await hasAccess("member")))
     return <PasswordGate role="member" next="/ex" title="Exchange" blurb="Enter the group password to play." />;
   return (
