@@ -75,29 +75,52 @@ export function ExClient({ initial }: { initial: ExView }) {
 }
 
 function Desk({ view, pending, run, notice, error }: { view: ExView; pending: boolean; run: Run; notice: string | null; error: React.ReactNode }) {
-  const cols =
-    view.me && view.isHost
-      ? "xl:grid-cols-[16rem_minmax(17rem,21rem)_minmax(0,1fr)_minmax(18rem,22rem)]"
-      : view.me
-        ? "xl:grid-cols-[17rem_minmax(19rem,24rem)_minmax(0,1fr)]"
-        : "xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)_minmax(20rem,24rem)]";
+  const [board, setBoard] = useState(view.me === null);
+  const boardToggle = view.me && (
+    <button type="button" className="text-xs text-sky-300 hover:text-sky-200" onClick={() => setBoard((b) => !b)}>
+      {board ? "Back to trading" : "Big scoreboard"}
+    </button>
+  );
+  const chart = (
+    <div className="panel space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="section-title">{view.ticker} price</h2>
+        <span className="text-xs text-zinc-500">
+          <span className="text-sky-300">mid</span> · <span className="text-zinc-300">last</span> · volume{" "}
+          {view.volume.toLocaleString("en-US")}
+        </span>
+      </div>
+      <Chart points={view.chart} caseSecs={view.settings.caseSecs} className="h-40 xl:h-48" />
+    </div>
+  );
+
+  if (view.isHost && board)
+    return (
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(16rem,19rem)_minmax(0,1fr)_minmax(20rem,26rem)]">
+        <Trading view={view} pending={pending} run={run} notice={notice} error={error} spectate />
+        <div className="order-first lg:col-span-2 xl:order-none xl:col-span-1 xl:min-h-0">
+          <HostPanel view={view} pending={pending} run={run} big toggle={boardToggle} />
+        </div>
+        <div className="flex min-h-0 flex-col gap-3">
+          {chart}
+          {view.pnlHistory && (
+            <div className="panel min-h-0 overflow-y-auto">
+              <PnlChart history={view.pnlHistory} caseSecs={view.settings.caseSecs} className="h-56" />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+
+  const cols = view.me && view.isHost ? "xl:grid-cols-[16rem_minmax(17rem,21rem)_minmax(0,1fr)_minmax(18rem,22rem)]" : "xl:grid-cols-[17rem_minmax(19rem,24rem)_minmax(0,1fr)]";
   return (
     <div className={`grid min-h-0 flex-1 gap-3 lg:grid-cols-2 ${cols}`}>
       <Trading view={view} pending={pending} run={run} notice={notice} error={error} />
       <div className="flex min-h-0 flex-col gap-3">
-        <div className="panel space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="section-title">{view.ticker} price</h2>
-            <span className="text-xs text-zinc-500">
-              <span className="text-sky-300">mid</span> · <span className="text-zinc-300">last</span> · volume{" "}
-              {view.volume.toLocaleString("en-US")}
-            </span>
-          </div>
-          <Chart points={view.chart} caseSecs={view.settings.caseSecs} className="h-40 xl:h-48" />
-        </div>
+        {chart}
         {view.me && <Orders view={view} pending={pending} run={run} />}
       </div>
-      {view.isHost && <HostPanel view={view} pending={pending} run={run} />}
+      {view.isHost && <HostPanel view={view} pending={pending} run={run} toggle={boardToggle} />}
     </div>
   );
 }
@@ -210,8 +233,22 @@ const validInt = (v: string, min: number, max: number) => {
   return Number.isInteger(n) && n >= min && n <= max ? n : null;
 };
 
-function Trading({ view, pending, run, notice, error }: { view: ExView; pending: boolean; run: Run; notice: string | null; error: React.ReactNode }) {
-  const canTrade = view.me !== null;
+function Trading({
+  view,
+  pending,
+  run,
+  notice,
+  error,
+  spectate = false,
+}: {
+  view: ExView;
+  pending: boolean;
+  run: Run;
+  notice: string | null;
+  error: React.ReactNode;
+  spectate?: boolean;
+}) {
+  const canTrade = view.me !== null && !spectate;
   const maxQty = view.settings.maxOrderSize;
   const [bidQty, setBidQty] = useState("10");
   const [askQty, setAskQty] = useState("10");
@@ -395,44 +432,52 @@ function Orders({ view, pending, run }: { view: ExView; pending: boolean; run: R
   );
 }
 
-function Standings({ rows, detail }: { rows: NonNullable<ExView["standings"]>; detail?: { position: boolean; cash: boolean } }) {
+type StandingRow = NonNullable<ExView["standings"]>[number];
+
+function Standings({ rows, detail, big = false }: { rows: StandingRow[]; detail?: { position: boolean; cash: boolean }; big?: boolean }) {
   if (rows.length === 0) return <p className="text-sm text-zinc-500">No players.</p>;
+  const item = (r: StandingRow, i: number) => (
+    <li key={r.name} className={`flex items-center gap-2 ${big ? "rounded-lg bg-white/[0.03] px-3 py-1.5" : ""} ${r.me ? "text-sky-200" : "text-zinc-300"}`}>
+      <span className={`text-right ${big ? "w-7 font-semibold" : "w-5"} ${big && i < 3 ? "text-amber-300" : "text-zinc-500"}`}>{i + 1}</span>
+      <span className="truncate">{r.name}</span>
+      <span className="ml-auto" />
+      {(detail?.position ?? true) && <span className={`font-mono text-zinc-500 ${big ? "text-sm" : "text-xs"}`}>{signed(r.position)}</span>}
+      {detail?.cash && <span className={`font-mono text-zinc-500 ${big ? "text-sm" : "text-xs"}`}>{formatMoney(r.cash)}</span>}
+      <span className={`text-right font-mono ${big ? "w-32" : "w-24"} ${signedClass(r.pnl)}`}>{formatSignedMoney(r.pnl)}</span>
+    </li>
+  );
+  if (!big) return <ol className="space-y-1 text-sm">{rows.map(item)}</ol>;
+  // Two columns once there are more names than fit comfortably in one, ranked down the left then the right.
+  const half = rows.length > 12 ? Math.ceil(rows.length / 2) : rows.length;
   return (
-    <ol className="space-y-1 text-sm">
-      {rows.map((r, i) => (
-        <li key={r.name} className={`flex items-center gap-2 ${r.me ? "text-sky-200" : "text-zinc-300"}`}>
-          <span className="w-5 text-right text-zinc-500">{i + 1}</span>
-          <span className="truncate">{r.name}</span>
-          <span className="ml-auto" />
-          {(detail?.position ?? true) && <span className="font-mono text-xs text-zinc-500">{signed(r.position)}</span>}
-          {detail?.cash && <span className="font-mono text-xs text-zinc-500">{formatMoney(r.cash)}</span>}
-          <span className={`w-24 text-right font-mono ${signedClass(r.pnl)}`}>{formatSignedMoney(r.pnl)}</span>
-        </li>
-      ))}
-    </ol>
+    <div className={`grid gap-x-4 text-lg ${half < rows.length ? "2xl:grid-cols-2" : ""}`}>
+      <ol className="space-y-1.5">{rows.slice(0, half).map(item)}</ol>
+      {half < rows.length && <ol className="space-y-1.5 max-2xl:mt-1.5">{rows.slice(half).map((r, i) => item(r, i + half))}</ol>}
+    </div>
   );
 }
 
-function HostPanel({ view, pending, run }: { view: ExView; pending: boolean; run: Run }) {
+function HostPanel({ view, pending, run, big = false, toggle }: { view: ExView; pending: boolean; run: Run; big?: boolean; toggle?: React.ReactNode }) {
   const [showPos, setShowPos] = useState(true);
   const [showCash, setShowCash] = useState(false);
   return (
-    <div className="panel flex min-h-0 flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="section-title">Scoreboard</h2>
-        <span className="pill bg-amber-400/10 text-amber-300">Fair now: {view.fairNow ?? "—"}</span>
+    <div className={`panel flex min-h-0 flex-col gap-3 ${big ? "h-full p-5" : ""}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className={big ? "text-xl font-semibold text-zinc-50" : "section-title"}>{big ? "Live scoreboard" : "Scoreboard"}</h2>
+        <span className={`pill bg-amber-400/10 text-amber-300 ${big ? "text-sm" : ""}`}>Fair now: {view.fairNow ?? "—"}</span>
       </div>
-      <div className="flex gap-4 text-xs text-zinc-400">
+      <div className="flex flex-wrap gap-4 text-xs text-zinc-400">
         <label className="flex items-center gap-1">
           <input type="checkbox" className="accent-sky-400" checked={showPos} onChange={(e) => setShowPos(e.target.checked)} /> Position
         </label>
         <label className="flex items-center gap-1">
           <input type="checkbox" className="accent-sky-400" checked={showCash} onChange={(e) => setShowCash(e.target.checked)} /> Cash
         </label>
+        {toggle && <span className="ml-auto">{toggle}</span>}
       </div>
-      {view.pnlHistory && <PnlChart history={view.pnlHistory} caseSecs={view.settings.caseSecs} />}
-      <div className="max-h-96 min-h-0 flex-1 overflow-y-auto xl:max-h-none">
-        {view.standings && <Standings rows={view.standings} detail={{ position: showPos, cash: showCash }} />}
+      {!big && view.pnlHistory && <PnlChart history={view.pnlHistory} caseSecs={view.settings.caseSecs} />}
+      <div className={`min-h-0 flex-1 overflow-y-auto xl:max-h-none ${big ? "" : "max-h-96"}`}>
+        {view.standings && <Standings rows={view.standings} detail={{ position: showPos, cash: showCash }} big={big} />}
       </div>
       <button
         className="btn-ghost w-full"
@@ -475,7 +520,7 @@ function Results({ view }: { view: ExView }) {
 
 const SERIES = ["#7dd3fc", "#fcd34d", "#86efac", "#fca5a5", "#c4b5fd", "#f9a8d4", "#5eead4", "#fdba74"];
 
-function PnlChart({ history, caseSecs }: { history: NonNullable<ExView["pnlHistory"]>; caseSecs: number }) {
+function PnlChart({ history, caseSecs, className = "h-40" }: { history: NonNullable<ExView["pnlHistory"]>; caseSecs: number; className?: string }) {
   const W = 600;
   const H = 160;
   const values = history.points.flatMap(([, ...v]) => v);
@@ -487,7 +532,7 @@ function PnlChart({ history, caseSecs }: { history: NonNullable<ExView["pnlHisto
   return (
     <div className="space-y-1">
       <h3 className="text-xs font-medium text-zinc-400">P&amp;L over time</h3>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-40 w-full" preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${W} ${H}`} className={`w-full ${className}`} preserveAspectRatio="none">
         <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="rgba(255,255,255,0.12)" />
         {history.names.map((name, i) => (
           <polyline
