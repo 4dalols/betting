@@ -99,7 +99,7 @@ function Desk({ view, pending, run, notice, error }: { view: ExView; pending: bo
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(16rem,19rem)_minmax(0,1fr)_minmax(20rem,26rem)]">
         <Trading view={view} pending={pending} run={run} notice={notice} error={error} spectate />
         <div className="order-first lg:col-span-2 xl:order-none xl:col-span-1 xl:min-h-0">
-          <HostPanel view={view} pending={pending} run={run} big toggle={boardToggle} />
+          <HostPanel view={view} pending={pending} run={run} big toggle={boardToggle} error={view.me && error} />
         </div>
         <div className="flex min-h-0 flex-col gap-3">
           {chart}
@@ -457,7 +457,21 @@ function Standings({ rows, detail, big = false }: { rows: StandingRow[]; detail?
   );
 }
 
-function HostPanel({ view, pending, run, big = false, toggle }: { view: ExView; pending: boolean; run: Run; big?: boolean; toggle?: React.ReactNode }) {
+function HostPanel({
+  view,
+  pending,
+  run,
+  big = false,
+  toggle,
+  error,
+}: {
+  view: ExView;
+  pending: boolean;
+  run: Run;
+  big?: boolean;
+  toggle?: React.ReactNode;
+  error?: React.ReactNode;
+}) {
   const [showPos, setShowPos] = useState(true);
   const [showCash, setShowCash] = useState(false);
   return (
@@ -479,6 +493,7 @@ function HostPanel({ view, pending, run, big = false, toggle }: { view: ExView; 
       <div className={`min-h-0 flex-1 overflow-y-auto xl:max-h-none ${big ? "" : "max-h-96"}`}>
         {view.standings && <Standings rows={view.standings} detail={{ position: showPos, cash: showCash }} big={big} />}
       </div>
+      {error}
       <button
         className="btn-ghost w-full"
         disabled={pending}
