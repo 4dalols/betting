@@ -247,6 +247,7 @@ function NumberField({ label, value, onChange, min, max }: { label: string; valu
 }
 
 const validInt = (v: string, min: number, max: number) => {
+  if (v.trim() === "") return null;
   const n = Number(v);
   return Number.isInteger(n) && n >= min && n <= max ? n : null;
 };
