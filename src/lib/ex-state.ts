@@ -10,6 +10,7 @@ import {
   fairAt,
   mid,
   openOrders,
+  pathFor,
   pnl,
   steps,
   submit,
@@ -100,7 +101,8 @@ export async function startGame(gameId: string) {
     const now = Date.now();
     const seed = Math.floor(Math.random() * 2 ** 31);
     const cfg = { ...exConfig(game), seed };
-    const state = advance(emptyState(thetaPath(cfg, steps(cfg))[0]), cfg, 0);
+    const n = steps(cfg);
+    const state = advance({ ...emptyState(thetaPath(cfg, n)[0]), steps: n }, cfg, 0);
     await tx.exGame.update({
       where: { id: gameId },
       data: {
@@ -268,7 +270,7 @@ export async function getExView(code: string, playerToken?: string, hostToken?: 
   const cfg = exConfig(game);
   const state = (game.state as Stored | null) ?? emptyState(Math.round((cfg.priceMin + cfg.priceMax) / 2));
   const finished = game.status === "FINISHED" && game.startedAt !== null;
-  const theta = game.startedAt ? thetaPath(cfg, steps(cfg)) : [];
+  const theta = game.startedAt ? pathFor(state, cfg) : [];
   const pnlOf = (p: { id: string; pnl: number | null }) => (finished && p.pnl !== null ? p.pnl : pnl(state.accounts[p.id], state.last));
 
   const standings =
@@ -332,6 +334,6 @@ export async function getExView(code: string, playerToken?: string, hostToken?: 
       : null,
     answer: isHost || finished ? cfg.answer : null,
     fairNow: isHost && game.status === "PLAYING" ? fairAt(cfg, theta, state.t) : null,
-    fairPath: finished ? theta : null,
+    fairPath: finished ? theta.slice(0, steps(cfg)) : null,
   };
 }

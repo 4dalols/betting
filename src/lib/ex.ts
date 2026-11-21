@@ -64,6 +64,8 @@ export type ExState = {
   chart: ChartPoint[];
   /** Every PNL_SAMPLE_SECS: [second, P&L per player]. */
   pnlHistory: [number, Record<string, number>][];
+  /** Fair-value steps planned at the open; fixed so ending the case early doesn't reshape the bots' path. */
+  steps?: number;
 };
 
 // ---------- Seeded randomness ----------
@@ -110,6 +112,9 @@ export function thetaPath(cfg: Grid & Pick<ExConfig, "seed" | "answer" | "guessP
   }
   return out;
 }
+
+/** The bots' fair value per step for this game, over the case length planned at the open. */
+export const pathFor = (state: Pick<ExState, "steps">, cfg: ExConfig) => thetaPath(cfg, state.steps ?? steps(cfg));
 
 export function fairAt(cfg: ExConfig, theta: number[], tMs: number) {
   return theta[Math.min(theta.length - 1, Math.max(0, Math.floor(tMs / (cfg.stepSecs * 1000))))];
@@ -246,7 +251,7 @@ function quote(state: ExState, g: Grid, center: number, at: number) {
  * - each second the chart is sampled (and the maker re-quotes at the current θ if either side has been cleaned out).
  * P&L is sampled marked to the last trade, and at the bell to the answer.
  */
-export function advance(state: ExState, cfg: ExConfig, toMs: number, theta = thetaPath(cfg, steps(cfg))) {
+export function advance(state: ExState, cfg: ExConfig, toMs: number, theta = pathFor(state, cfg)) {
   const end = cfg.caseSecs * 1000;
   const target = Math.min(toMs, end);
   const stepMs = cfg.stepSecs * 1000;

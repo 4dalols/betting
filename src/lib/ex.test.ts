@@ -6,6 +6,7 @@ import {
   MM,
   MM_LEVELS,
   advance,
+  pathFor,
   checkOrder,
   customerOrder,
   emptyState,
@@ -176,6 +177,17 @@ describe("bots", () => {
     submit(s, "p", true, 50, 10, 0);
     advance(s, c, 60_000);
     expect(s.pnlHistory.at(-1)).toEqual([60, expect.objectContaining({ p: 10 * (70 - 50) })]);
+  });
+
+  it("ending early keeps the bots' path planned at the open", () => {
+    const c = cfg({ caseSecs: 600 });
+    const full = { ...emptyState(50), steps: steps(c) };
+    advance(full, c, 149_999);
+    const early = { ...emptyState(50), steps: steps(c) };
+    advance(early, c, 100_000);
+    advance(early, { ...c, caseSecs: 150 }, 149_999);
+    expect(early.book).toEqual(full.book);
+    expect(pathFor(early, { ...c, caseSecs: 150 })).toEqual(thetaPath(c, 10));
   });
 
   it("stops at the bell", () => {
