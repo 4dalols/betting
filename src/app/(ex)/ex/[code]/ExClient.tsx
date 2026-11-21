@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import type { ExLevel, ExView } from "@/lib/ex-state";
 import { exHostAction, exTrade, joinExGame } from "@/lib/ex-actions";
-import { PRICE_MAX, PRICE_MIN, formatMoney, formatSignedMoney } from "@/lib/ex";
+import { formatMoney, formatSignedMoney } from "@/lib/ex";
 import { ActionForm } from "@/components/ActionForm";
 
 const POLL_MS = 1000;
@@ -17,7 +17,6 @@ const clock = (ms: number) => {
 };
 const signedClass = (n: number) => (n > 0 ? "text-emerald-300" : n < 0 ? "text-red-300" : "text-zinc-300");
 const signed = (n: number) => (n > 0 ? `+${n.toLocaleString("en-US")}` : n.toLocaleString("en-US"));
-const clampPrice = (p: number) => Math.max(PRICE_MIN, Math.min(PRICE_MAX, Math.round(p)));
 
 export function ExClient({ initial }: { initial: ExView }) {
   const [view, setView] = useState(initial);
@@ -66,6 +65,7 @@ export function ExClient({ initial }: { initial: ExView }) {
   return (
     <div className={playing ? "flex flex-col gap-3 xl:h-[calc(100dvh-5rem)]" : "mx-auto max-w-6xl space-y-6 py-4"}>
       <StatusStrip view={view} serverNow={serverNow} />
+      <Question view={view} />
       {!(playing && view.me) && errorBox}
       {view.status === "LOBBY" && <Lobby view={view} pending={pending} run={run} />}
       {playing && <Desk view={view} pending={pending} run={run} notice={notice} error={errorBox} />}
@@ -90,7 +90,7 @@ function Desk({ view, pending, run, notice, error }: { view: ExView; pending: bo
           {view.volume.toLocaleString("en-US")}
         </span>
       </div>
-      <Chart points={view.chart} caseSecs={view.settings.caseSecs} className="h-40 xl:h-48" />
+      <Chart points={view.chart} caseSecs={view.settings.caseSecs} range={view.settings} className="h-40 xl:h-48" />
     </div>
   );
 
@@ -180,6 +180,24 @@ function StatusStrip({ view, serverNow }: { view: ExView; serverNow: number }) {
   );
 }
 
+function Question({ view }: { view: ExView }) {
+  if (!view.question) return null;
+  return (
+    <div className="panel flex flex-wrap items-center gap-x-4 gap-y-1 py-2">
+      <p className="text-[11px] uppercase tracking-wider text-zinc-500">{view.ticker} settles at</p>
+      <p className="text-lg font-semibold text-zinc-50">{view.question}</p>
+      <p className="text-xs text-zinc-500">
+        Prices {view.settings.priceMin.toLocaleString("en-US")}–{view.settings.priceMax.toLocaleString("en-US")}
+      </p>
+      {view.answer !== null && (
+        <span className="pill ml-auto bg-amber-400/10 text-amber-300">
+          {view.status === "FINISHED" ? "Answer" : "Answer (host only)"}: {view.answer.toLocaleString("en-US")}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function Lobby({ view, pending, run }: { view: ExView; pending: boolean; run: Run }) {
   const s = view.settings;
   return (
@@ -187,7 +205,7 @@ function Lobby({ view, pending, run }: { view: ExView; pending: boolean; run: Ru
       <h2 className="text-xl font-semibold text-zinc-50">Waiting for players</h2>
       <p className="text-sm text-zinc-500">Share the code above. Everyone opens /ex and enters it.</p>
       <p className="text-xs text-zinc-500">
-        {Math.round(s.caseSecs / 60)} min case · fair moves every {s.stepSecs}s · {s.customerRate} customer orders/s · risk
+        {Math.round(s.caseSecs / 60)} min case · bots&apos; fair value moves toward the answer every {s.stepSecs}s · {s.customerRate} customer orders/s · risk
         limit {s.positionLimit.toLocaleString("en-US")} · max order {s.maxOrderSize.toLocaleString("en-US")}
       </p>
       <div className="flex flex-wrap justify-center gap-2">
@@ -249,11 +267,13 @@ function Trading({
   spectate?: boolean;
 }) {
   const canTrade = view.me !== null && !spectate;
-  const maxQty = view.settings.maxOrderSize;
+  const { priceMin, priceMax, maxOrderSize: maxQty } = view.settings;
+  const span = priceMax - priceMin;
+  const clampPrice = (p: number) => Math.max(priceMin, Math.min(priceMax, Math.round(p)));
   const [bidQty, setBidQty] = useState("10");
   const [askQty, setAskQty] = useState("10");
-  const [bidPrice, setBidPrice] = useState(() => String(view.bids[0]?.price ?? 50));
-  const [askPrice, setAskPrice] = useState(() => String(view.asks[0]?.price ?? 50));
+  const [bidPrice, setBidPrice] = useState(() => String(view.bids[0]?.price ?? view.last));
+  const [askPrice, setAskPrice] = useState(() => String(view.asks[0]?.price ?? view.last));
   const [edge, setEdge] = useState("0");
   const [depth, setDepth] = useState("10");
 
@@ -263,7 +283,7 @@ function Trading({
   };
   const bq = validInt(bidQty, 1, maxQty);
   const aq = validInt(askQty, 1, maxQty);
-  const quickEdge = validInt(edge, -PRICE_MAX, PRICE_MAX) ?? 0;
+  const quickEdge = validInt(edge, -span, span) ?? 0;
   const levels = validInt(depth, 1, MAX_LEVELS) ?? 10;
   const fair = view.mid ?? view.last;
 
@@ -309,7 +329,7 @@ function Trading({
 
   const settings = (
     <div className="grid grid-cols-2 gap-2">
-      <NumberField label="Quick-order edge" value={edge} onChange={setEdge} min={-PRICE_MAX} max={PRICE_MAX} />
+      <NumberField label="Quick-order edge" value={edge} onChange={setEdge} min={-span} max={span} />
       <NumberField label={`Levels (max ${MAX_LEVELS})`} value={depth} onChange={setDepth} min={1} max={MAX_LEVELS} />
     </div>
   );
@@ -322,16 +342,16 @@ function Trading({
             <h2 className="section-title">Place order</h2>
             <div className="grid grid-cols-2 gap-2">
               <NumberField label="Buy qty" value={bidQty} onChange={setBidQty} min={1} max={maxQty} />
-              <NumberField label="@ price" value={bidPrice} onChange={setBidPrice} min={PRICE_MIN} max={PRICE_MAX} />
+              <NumberField label="@ price" value={bidPrice} onChange={setBidPrice} min={priceMin} max={priceMax} />
             </div>
-            <button type="button" className="btn btn-buy w-full" disabled={pending || bq === null || validInt(bidPrice, PRICE_MIN, PRICE_MAX) === null} onClick={() => order(true, validInt(bidPrice, PRICE_MIN, PRICE_MAX), bq)}>
+            <button type="button" className="btn btn-buy w-full" disabled={pending || bq === null || validInt(bidPrice, priceMin, priceMax) === null} onClick={() => order(true, validInt(bidPrice, priceMin, priceMax), bq)}>
               Buy
             </button>
             <div className="grid grid-cols-2 gap-2 pt-1">
               <NumberField label="Sell qty" value={askQty} onChange={setAskQty} min={1} max={maxQty} />
-              <NumberField label="@ price" value={askPrice} onChange={setAskPrice} min={PRICE_MIN} max={PRICE_MAX} />
+              <NumberField label="@ price" value={askPrice} onChange={setAskPrice} min={priceMin} max={priceMax} />
             </div>
-            <button type="button" className="btn btn-sell w-full" disabled={pending || aq === null || validInt(askPrice, PRICE_MIN, PRICE_MAX) === null} onClick={() => order(false, validInt(askPrice, PRICE_MIN, PRICE_MAX), aq)}>
+            <button type="button" className="btn btn-sell w-full" disabled={pending || aq === null || validInt(askPrice, priceMin, priceMax) === null} onClick={() => order(false, validInt(askPrice, priceMin, priceMax), aq)}>
               Sell
             </button>
             {notice && !pending && <p className="text-xs text-sky-300">{notice}</p>}
@@ -478,7 +498,7 @@ function HostPanel({
     <div className={`panel flex min-h-0 flex-col gap-3 ${big ? "h-full p-5" : ""}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className={big ? "text-xl font-semibold text-zinc-50" : "section-title"}>{big ? "Live scoreboard" : "Scoreboard"}</h2>
-        <span className={`pill bg-amber-400/10 text-amber-300 ${big ? "text-sm" : ""}`}>Fair now: {view.fairNow ?? "—"}</span>
+        <span className={`pill bg-amber-400/10 text-amber-300 ${big ? "text-sm" : ""}`}>Bots&apos; fair now: {view.fairNow ?? "—"}</span>
       </div>
       <div className="flex flex-wrap gap-4 text-xs text-zinc-400">
         <label className="flex items-center gap-1">
@@ -497,7 +517,7 @@ function HostPanel({
       <button
         className="btn-ghost w-full"
         disabled={pending}
-        onClick={() => confirm("End the case now? Positions are marked to the last traded price.") && run(() => exHostAction(view.code, "end"))}
+        onClick={() => confirm("End the case now? Positions settle at the answer.") && run(() => exHostAction(view.code, "end"))}
       >
         End case now
       </button>
@@ -511,12 +531,20 @@ function Results({ view }: { view: ExView }) {
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="card space-y-3 lg:col-span-2">
         <div className="flex items-center justify-between">
-          <h2 className="section-title">Fair value revealed</h2>
-          <span className="pill bg-amber-400/10 text-amber-300">Marked at last trade {view.last}</span>
+          <h2 className="section-title">Answer revealed</h2>
+          <span className="pill bg-amber-400/10 text-amber-300">Settled at {view.answer?.toLocaleString("en-US")}</span>
         </div>
-        <Chart points={view.chart} caseSecs={view.settings.caseSecs} fair={view.fairPath ?? undefined} stepSecs={view.settings.stepSecs} />
+        <Chart
+          points={view.chart}
+          caseSecs={view.settings.caseSecs}
+          fair={view.fairPath ?? undefined}
+          stepSecs={view.settings.stepSecs}
+          answer={view.answer ?? undefined}
+          range={view.settings}
+        />
         <p className="text-xs text-zinc-500">
-          Sky line: mid price. Amber steps: hidden fair value per step ({view.fairPath?.join(" → ")}).
+          Sky line: mid price. Amber steps: the bots&apos; fair value per step ({view.fairPath?.join(" → ")}). Green line: the
+          answer.
         </p>
         {view.pnlHistory && <PnlChart history={view.pnlHistory} caseSecs={view.settings.caseSecs} />}
       </div>
@@ -579,20 +607,24 @@ function Chart({
   caseSecs,
   fair,
   stepSecs,
+  answer,
+  range,
   className = "h-[180px]",
 }: {
   points: [number, number | null, number | null][];
   caseSecs: number;
   fair?: number[];
   stepSecs?: number;
+  answer?: number;
+  range: { priceMin: number; priceMax: number };
   className?: string;
 }) {
   const W = 600;
   const H = 180;
-  const values = [...points.flatMap(([, m, l]) => [m, l].filter((v): v is number => v !== null)), ...(fair ?? [])];
+  const values = [...points.flatMap(([, m, l]) => [m, l].filter((v): v is number => v !== null)), ...(fair ?? []), ...(answer !== undefined ? [answer] : [])];
   if (values.length === 0) return <div className={`grid place-items-center text-sm text-zinc-500 ${className}`}>No prices yet.</div>;
-  const lo = Math.max(PRICE_MIN, Math.min(...values) - 3);
-  const hi = Math.min(PRICE_MAX, Math.max(...values) + 3);
+  const lo = Math.max(range.priceMin, Math.min(...values) - 3);
+  const hi = Math.min(range.priceMax, Math.max(...values) + 3);
   const x = (sec: number) => (sec / caseSecs) * W;
   const y = (v: number) => H - ((v - lo) / Math.max(1, hi - lo)) * H;
   const mids = points.filter((p) => p[1] !== null).map(([sec, m]) => `${x(sec).toFixed(1)},${y(m!).toFixed(1)}`);
@@ -612,6 +644,7 @@ function Chart({
           </text>
         </g>
       ))}
+      {answer !== undefined && <line x1={0} x2={W} y1={y(answer)} y2={y(answer)} stroke="rgb(134 239 172)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />}
       {fairSteps && <polyline points={fairSteps.join(" ")} fill="none" stroke="rgb(252 211 77)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />}
       <polyline points={lasts.join(" ")} fill="none" stroke="rgba(212,212,216,0.45)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       <polyline points={mids.join(" ")} fill="none" stroke="rgb(125 211 252)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />

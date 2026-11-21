@@ -53,16 +53,20 @@ A third login-free game lives at `/tt` (join) and `/tt/host` (create), behind th
 A fourth game at `/ex` (join) and `/ex/host` (create), behind the same `GAME_PASSWORD` / `GAME_HOST_PASSWORD` gate. It
 recreates the single-contract preliminary case of Traders@MIT's Mangocore simulator (`python-rewrite-new-ui-2`).
 
-- **Contract.** One ticker, `A`, integer prices 1–100. Hidden fair value θ starts U{40..60} and moves U{-5..5}
-  (clipped) every step (default 60 s) of a 600 s case.
-- **Bots.** A market maker quotes 1,000 lots at every price but its center (bids below, asks above), centered on θ at
-  the open and then re-centered on the *previous* θ each time θ changes. Customers send 10-lot orders within ±5 of θ,
-  buy or sell 50/50, ten a second.
+- **Contract.** One ticker, `A`, on the answer to a question the host sets (e.g. US hurricanes in the past century),
+  with integer prices in a host-set range. The host also enters the true answer, hidden from players until the bell.
+- **Bots' fair value θ.** Starts at a guess up to `guessPct` of the range away from the answer and closes in linearly
+  each step (default 60 s) of a 600 s case, with shrinking jitter, reaching the answer on the last step.
+- **Bots.** A market maker quotes 1,000 lots at each of 30 prices either side of its center (bids below, asks above),
+  centered on θ at the open and then re-centered on the *previous* θ each time θ changes. Customers send 25-lot orders,
+  buy or sell 50/50, ten a second, priced within ±5 of θ and shifted 2 toward crossing (buys θ−3..θ+7, sells θ−7..θ+3)
+  so that more of their flow fills resting player orders.
 - **Trading.** Limit orders matched by price-time priority at the resting price; ladder quick orders (± edge) and
   fair-side Buy/Sell buttons; cancel / cancel all. Limits: max order size, max open orders, and long and short
   exposure (incl. open orders) each within the risk limit.
-- **Scoring.** 100,000 starting cash; P&L marks to the last traded price during the case and at the bell. The host
-  sees fair, the scoreboard and P&L history; the fair path is revealed at the end.
+- **Scoring.** 100,000 starting cash; P&L marks to the last traded price during the case and settles at the answer at
+  the bell. The host sees the answer, the bots' fair, the scoreboard and P&L history; the answer and the bots' path are
+  revealed to everyone at the end.
 - **Serverless.** The bots are generated from a per-game seed and replayed up to "now" on every request, so no
   background process is needed. Each game's book lives in `ExGame.state`; actions take the row lock, pollers use
   `SKIP LOCKED`, and players are limited to 5 actions a second. Engine in `src/lib/ex.ts`, persistence and views in

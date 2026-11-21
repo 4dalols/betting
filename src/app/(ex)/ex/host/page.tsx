@@ -35,24 +35,45 @@ export default async function ExHostPage() {
       <div>
         <h1 className="page-title">Host an Exchange</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          One contract against a lagging market maker and customer flow, as in Mangocore&apos;s preliminary case. Create
-          the game and share the code. You start the case from the game screen; it ends itself
-          at the bell.
+          Players trade a contract on the answer to a question, against a lagging market maker and customer flow, as in
+          Mangocore&apos;s preliminary case. At the bell every position settles at the true answer. Create the game and
+          share the code. You start the case from the game screen; it ends itself at the bell.
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <ActionForm action={createExGame} className="card space-y-6 md:col-span-2">
           <section className="space-y-3">
+            <h2 className="section-title">Question</h2>
+            <Field label="Question" hint="Shown to everyone while they trade">
+              <input className="input" name="question" maxLength={300} placeholder="Hurricanes to hit the US mainland, 1925–2024" required />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <Field label="True answer" hint="Hidden until the bell">
+                <input className="input" name="answer" type="number" step="any" required />
+              </Field>
+              <Field label="Lowest price">
+                <input className="input" name="priceMin" type="number" min={0} max={1000000} defaultValue={0} required />
+              </Field>
+              <Field label="Highest price" hint="Whole-number prices; pick units so the answer fits">
+                <input className="input" name="priceMax" type="number" min={0} max={1000000} defaultValue={100} required />
+              </Field>
+              <Field label="Bots' first-guess error (%)" hint="Of the price range, either way">
+                <input className="input" name="guessPct" type="number" min={0} max={100} defaultValue={20} required />
+              </Field>
+            </div>
+          </section>
+
+          <section className="space-y-3">
             <h2 className="section-title">Case</h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Length (seconds)">
                 <input className="input" name="caseSecs" type="number" min={60} max={3600} defaultValue={600} required />
               </Field>
-              <Field label="Fair-value step (seconds)" hint="Fair moves by up to ±5 once per step">
+              <Field label="Fair-value step (seconds)" hint="The bots' fair value moves toward the answer once per step">
                 <input className="input" name="stepSecs" type="number" min={5} max={600} defaultValue={60} required />
               </Field>
-              <Field label="Customer orders per second" hint="10 lots each, within 5 of fair">
+              <Field label="Customer orders per second" hint="25 lots each, leaning toward paying up">
                 <input className="input" name="customerRate" type="number" min={0} max={20} defaultValue={10} required />
               </Field>
             </div>

@@ -472,6 +472,15 @@ model ExGame {
   status    GameStatus @default(LOBBY)
   createdAt DateTime   @default(now())
 
+  /// What the contract is on, e.g. "Hurricanes to hit the US mainland, 1925–2024".
+  question String @default("")
+  /// True answer; positions settle here at the bell. Hidden from players until then.
+  answer   Float  @default(50)
+  priceMin Int    @default(1)
+  priceMax Int    @default(100)
+  /// How far off the bots' first guess can be, as a percentage of the price range.
+  guessPct Int    @default(20)
+
   caseSecs      Int @default(600)
   stepSecs      Int @default(60)
   customerRate  Int @default(10)
