@@ -27,6 +27,11 @@ const int = (min: number, max: number) => z.coerce.number().int().min(min).max(m
 
 const settingsSchema = z
   .object({
+    question: z.string().trim().min(1, "Enter a question").max(300),
+    answer: z.coerce.number().finite(),
+    priceMin: int(0, 1_000_000),
+    priceMax: int(0, 1_000_000),
+    guessPct: int(0, 100),
     caseSecs: int(60, 3600),
     stepSecs: int(5, 600),
     customerRate: int(0, 20),
@@ -34,13 +39,17 @@ const settingsSchema = z
     maxOrderSize: int(1, 1000),
     maxOpenOrders: int(1, 200),
   })
-  .refine((s) => s.stepSecs <= s.caseSecs, { message: "Fair-value step can't be longer than the case", path: ["stepSecs"] });
+  .refine((s) => s.stepSecs <= s.caseSecs, { message: "Fair-value step can't be longer than the case", path: ["stepSecs"] })
+  .refine((s) => s.priceMax - s.priceMin >= 10, { message: "Price range must span at least 10", path: ["priceMax"] })
+  .refine((s) => s.answer >= s.priceMin && s.answer <= s.priceMax, { message: "Answer must be inside the price range", path: ["answer"] });
+
+const SETTINGS = ["question", "answer", "priceMin", "priceMax", "guessPct", "caseSecs", "stepSecs", "customerRate", "positionLimit", "maxOrderSize", "maxOpenOrders"];
 
 export async function createExGame(_prev: ActionState, formData: FormData): Promise<ActionState> {
   let code: string;
   try {
     await requireAccess("host");
-    const settings = settingsSchema.parse(Object.fromEntries(["caseSecs", "stepSecs", "customerRate", "positionLimit", "maxOrderSize", "maxOpenOrders"].map((k) => [k, formData.get(k)])));
+    const settings = settingsSchema.parse(Object.fromEntries(SETTINGS.map((k) => [k, formData.get(k)])));
     const hostToken = randomBytes(24).toString("hex");
     let created: { code: string } | null = null;
     for (let attempt = 0; attempt < 5 && !created; attempt++) {

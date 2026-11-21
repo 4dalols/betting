@@ -10,6 +10,7 @@ import {
   fairAt,
   mid,
   openOrders,
+  pathFor,
   pnl,
   steps,
   submit,
@@ -32,9 +33,15 @@ const POLL_ADVANCE_MS = 400;
 type Stored = ExState & { rl?: Record<string, number[]> };
 type Tx = Prisma.TransactionClient;
 
-export function exConfig(game: Pick<ExGame, "seed" | "caseSecs" | "stepSecs" | "customerRate" | "positionLimit" | "maxOrderSize" | "maxOpenOrders">): ExConfig {
+type ConfigCols = "seed" | "answer" | "priceMin" | "priceMax" | "guessPct" | "caseSecs" | "stepSecs" | "customerRate" | "positionLimit" | "maxOrderSize" | "maxOpenOrders";
+
+export function exConfig(game: Pick<ExGame, ConfigCols>): ExConfig {
   return {
     seed: game.seed,
+    answer: game.answer,
+    priceMin: game.priceMin,
+    priceMax: game.priceMax,
+    guessPct: game.guessPct,
     caseSecs: game.caseSecs,
     stepSecs: game.stepSecs,
     customerRate: game.customerRate,
@@ -52,7 +59,7 @@ async function catchUp(tx: Tx, game: ExGame, now: number): Promise<{ state: Stor
   const finished = now >= game.endsAt!.getTime();
   if (finished) {
     const players = await tx.exPlayer.findMany({ where: { gameId: game.id }, select: { id: true } });
-    for (const p of players) await tx.exPlayer.update({ where: { id: p.id }, data: { pnl: pnl(state.accounts[p.id], state.last) } });
+    for (const p of players) await tx.exPlayer.update({ where: { id: p.id }, data: { pnl: pnl(state.accounts[p.id], cfg.answer) } });
   }
   return { state, finished };
 }
@@ -94,7 +101,8 @@ export async function startGame(gameId: string) {
     const now = Date.now();
     const seed = Math.floor(Math.random() * 2 ** 31);
     const cfg = { ...exConfig(game), seed };
-    const state = advance(emptyState(), cfg, 0);
+    const n = steps(cfg);
+    const state = advance({ ...emptyState(thetaPath(cfg, n)[0]), steps: n }, cfg, 0);
     await tx.exGame.update({
       where: { id: gameId },
       data: {
@@ -110,7 +118,7 @@ export async function startGame(gameId: string) {
   });
 }
 
-/** Ends the case now: positions are marked to the last traded price, as at the bell. */
+/** Ends the case now: positions settle at the answer, as at the bell. */
 export async function endGame(gameId: string) {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT 1 FROM "ExGame" WHERE id = ${gameId} FOR UPDATE`;
@@ -193,7 +201,17 @@ export type ExView = {
   code: string;
   status: "LOBBY" | "PLAYING" | "FINISHED";
   ticker: string;
-  settings: { caseSecs: number; stepSecs: number; customerRate: number; positionLimit: number; maxOrderSize: number; maxOpenOrders: number };
+  question: string;
+  settings: {
+    priceMin: number;
+    priceMax: number;
+    caseSecs: number;
+    stepSecs: number;
+    customerRate: number;
+    positionLimit: number;
+    maxOrderSize: number;
+    maxOpenOrders: number;
+  };
   isHost: boolean;
   seq: number;
   serverNow: number;
@@ -221,9 +239,11 @@ export type ExView = {
   standings: ExStanding[] | null;
   /** Host only: P&L per player over time. */
   pnlHistory: { names: string[]; points: [number, ...number[]][] } | null;
-  /** Host while playing: the fair value in effect now. */
+  /** Host always; everyone once finished. */
+  answer: number | null;
+  /** Host while playing: the bots' fair value in effect now. */
   fairNow: number | null;
-  /** Revealed at the end: fair value per step. */
+  /** Revealed at the end: the bots' fair value per step. */
   fairPath: number[] | null;
 };
 
@@ -248,9 +268,9 @@ export async function getExView(code: string, playerToken?: string, hostToken?: 
   const isHost = Boolean(hostToken) && hostToken === game.hostToken;
   const meRow = playerToken ? game.players.find((p) => p.token === playerToken) : undefined;
   const cfg = exConfig(game);
-  const state = (game.state as Stored | null) ?? emptyState();
+  const state = (game.state as Stored | null) ?? emptyState(Math.round((cfg.priceMin + cfg.priceMax) / 2));
   const finished = game.status === "FINISHED" && game.startedAt !== null;
-  const theta = game.startedAt ? thetaPath(cfg.seed, steps(cfg)) : [];
+  const theta = game.startedAt ? pathFor(state, cfg) : [];
   const pnlOf = (p: { id: string; pnl: number | null }) => (finished && p.pnl !== null ? p.pnl : pnl(state.accounts[p.id], state.last));
 
   const standings =
@@ -271,7 +291,10 @@ export async function getExView(code: string, playerToken?: string, hostToken?: 
     code: game.code,
     status: game.status,
     ticker: TICKER,
+    question: game.question,
     settings: {
+      priceMin: cfg.priceMin,
+      priceMax: cfg.priceMax,
       caseSecs: cfg.caseSecs,
       stepSecs: cfg.stepSecs,
       customerRate: cfg.customerRate,
@@ -309,7 +332,8 @@ export async function getExView(code: string, playerToken?: string, hostToken?: 
           points: state.pnlHistory.map(([sec, byId]) => [sec, ...game.players.map((p) => byId[p.id] ?? 0)] as [number, ...number[]]),
         }
       : null,
+    answer: isHost || finished ? cfg.answer : null,
     fairNow: isHost && game.status === "PLAYING" ? fairAt(cfg, theta, state.t) : null,
-    fairPath: finished ? theta : null,
+    fairPath: finished ? theta.slice(0, steps(cfg)) : null,
   };
 }

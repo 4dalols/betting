@@ -31,13 +31,15 @@ export default async function ExIndexPage() {
       <div className="card space-y-2 text-sm text-zinc-400">
         <h2 className="section-title">How it works</h2>
         <p>
-          A live exchange for one contract, A, priced 1–100. A hidden fair value starts between 40 and 60 and moves by up
-          to ±5 every step (a minute by default).
+          A live exchange for one contract, A, on the answer to a question the host sets (say, how many hurricanes hit
+          the US in the past century). At the bell it settles at the true answer.
         </p>
         <p>
-          <span className="text-zinc-200">Bots:</span> a market maker quotes 1,000 lots at every price around its view of
-          fair, but only catches up one step late. Customers send 10-lot orders within 5 of fair, ten a second. Work out
-          where fair is from the flow and trade ahead of the maker.
+          <span className="text-zinc-200">Bots:</span> the bots start from a rough guess and move toward the true answer
+          every step (a minute by default). A market maker quotes 1,000 lots at each price around its view of fair, but
+          only catches up one step late. Customers send 25-lot orders near fair, ten a second, and lean toward
+          paying up, so resting orders near fair tend to get filled at a profit. Work out where fair is from the flow and
+          trade ahead of the maker.
         </p>
         <p>
           <span className="text-zinc-200">Orders:</span> limit orders, matched by price then time at the resting
@@ -45,8 +47,8 @@ export default async function ExIndexPage() {
           Your long and short exposure, including open orders, are each capped.
         </p>
         <p>
-          <span className="text-zinc-200">Scoring:</span> you start with 100,000 cash. P&amp;L marks your position to the
-          last traded price, during the case and at the bell.
+          <span className="text-zinc-200">Scoring:</span> you start with 100,000 cash. during the case P&amp;L marks your
+          position to the last traded price; at the bell it settles at the answer.
         </p>
       </div>
     </div>
