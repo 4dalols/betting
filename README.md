@@ -55,7 +55,8 @@ recreates the single-contract preliminary case of Traders@MIT's Mangocore simula
 
 - **Contract.** One ticker, `A`, on the answer to a question the host sets (e.g. US hurricanes in the past century),
   with integer prices in a host-set range. The host also enters the true answer, hidden from players until the bell.
-- **Bots' fair value θ.** Starts at a guess up to `guessPct` of the range away from the answer and closes in linearly
+- **Bots' fair value θ.** Starts at the host's starting price, or if blank a random guess up to `guessPct` of the
+  range away from the answer, and closes in linearly
   each step (default 60 s) of a 600 s case, with shrinking jitter, reaching the answer on the last step.
 - **Bots.** A market maker quotes 1,000 lots at each of 30 prices either side of its center (bids below, asks above),
   centered on θ at the open and then re-centered on the *previous* θ each time θ changes. Customers send 25-lot orders,

@@ -480,6 +480,8 @@ model ExGame {
   priceMax Int    @default(100)
   /// How far off the bots' first guess can be, as a percentage of the price range.
   guessPct Int    @default(20)
+  /// Where the bots' fair value opens; null for a random guess within guessPct.
+  startPrice Int?
 
   caseSecs      Int @default(600)
   stepSecs      Int @default(60)
