@@ -32,6 +32,7 @@ const settingsSchema = z
     priceMin: int(0, 1_000_000),
     priceMax: int(0, 1_000_000),
     guessPct: int(0, 100),
+    startPrice: z.preprocess((v) => (v === "" || v === null ? null : v), int(0, 1_000_000).nullable()),
     caseSecs: int(60, 3600),
     stepSecs: int(5, 600),
     customerRate: int(0, 20),
@@ -41,9 +42,13 @@ const settingsSchema = z
   })
   .refine((s) => s.stepSecs <= s.caseSecs, { message: "Fair-value step can't be longer than the case", path: ["stepSecs"] })
   .refine((s) => s.priceMax - s.priceMin >= 10, { message: "Price range must span at least 10", path: ["priceMax"] })
-  .refine((s) => s.answer >= s.priceMin && s.answer <= s.priceMax, { message: "Answer must be inside the price range", path: ["answer"] });
+  .refine((s) => s.answer >= s.priceMin && s.answer <= s.priceMax, { message: "Answer must be inside the price range", path: ["answer"] })
+  .refine((s) => s.startPrice === null || (s.startPrice >= s.priceMin && s.startPrice <= s.priceMax), {
+    message: "Starting price must be inside the price range",
+    path: ["startPrice"],
+  });
 
-const SETTINGS = ["question", "answer", "priceMin", "priceMax", "guessPct", "caseSecs", "stepSecs", "customerRate", "positionLimit", "maxOrderSize", "maxOpenOrders"];
+const SETTINGS = ["question", "answer", "priceMin", "priceMax", "guessPct", "startPrice", "caseSecs", "stepSecs", "customerRate", "positionLimit", "maxOrderSize", "maxOpenOrders"];
 
 export async function createExGame(_prev: ActionState, formData: FormData): Promise<ActionState> {
   let code: string;

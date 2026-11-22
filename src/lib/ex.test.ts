@@ -24,6 +24,7 @@ const cfg = (over: Partial<ExConfig> = {}): ExConfig => ({
   priceMin: 1,
   priceMax: 100,
   guessPct: 20,
+  startPrice: null,
   caseSecs: 600,
   stepSecs: 60,
   customerRate: 10,
@@ -89,6 +90,15 @@ describe("bots", () => {
     const wide = cfg({ priceMin: 0, priceMax: 5000, answer: 4990, guessPct: 50 });
     for (const v of thetaPath(wide, 20)) expect(v >= 0 && v <= 5000).toBe(true);
     expect(thetaPath(cfg({ guessPct: 0 }), 10)).toEqual(Array(10).fill(70));
+  });
+
+  it("opens at the host's starting price and still reaches the answer", () => {
+    for (const startPrice of [1, 30, 100]) {
+      const th = thetaPath(cfg({ startPrice }), 10);
+      expect(th[0]).toBe(startPrice);
+      expect(th[9]).toBe(70);
+    }
+    expect(thetaPath(cfg({ startPrice: 30, guessPct: 0 }), 5)).toEqual([30, 40, 50, 60, 70]);
   });
 
   it("customers trade both sides near fair, leaning toward paying up", () => {

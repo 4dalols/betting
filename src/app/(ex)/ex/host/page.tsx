@@ -48,7 +48,7 @@ export default async function ExHostPage() {
             <Field label="Question" hint="Shown to everyone while they trade">
               <input className="input" name="question" maxLength={300} placeholder="Hurricanes to hit the US mainland, 1925–2024" required />
             </Field>
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-5">
               <Field label="True answer" hint="Hidden from everyone, you included, until the bell">
                 <input className="input" name="answer" type="number" step="any" required />
               </Field>
@@ -60,6 +60,9 @@ export default async function ExHostPage() {
               </Field>
               <Field label="Bots' first-guess error (%)" hint="Of the price range, either way">
                 <input className="input" name="guessPct" type="number" min={0} max={100} defaultValue={20} required />
+              </Field>
+              <Field label="Starting price" hint="Where the bots open; blank for a random first guess">
+                <input className="input" name="startPrice" type="number" min={0} max={1000000} step={1} />
               </Field>
             </div>
           </section>

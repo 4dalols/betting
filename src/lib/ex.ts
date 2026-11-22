@@ -27,6 +27,8 @@ export type ExConfig = {
   priceMax: number;
   /** How far off the bots' first guess can be, as a percentage of the price range. */
   guessPct: number;
+  /** Where the bots' fair value opens; null for a random guess within guessPct. */
+  startPrice: number | null;
   caseSecs: number;
   /** The bots' fair value moves once per step. */
   stepSecs: number;
@@ -97,18 +99,20 @@ export const clip = (g: Grid, p: number) => Math.max(g.priceMin, Math.min(g.pric
 export const steps = (cfg: Pick<ExConfig, "caseSecs" | "stepSecs">) => Math.max(1, Math.ceil(cfg.caseSecs / cfg.stepSecs));
 
 /**
- * The bots' fair value θ per step. It starts at a guess up to guessPct of the range away from the answer and
- * closes in linearly, with jitter that shrinks alongside, reaching the answer on the last step.
+ * The bots' fair value θ per step. It opens at startPrice, or else a guess up to guessPct of the range away from the
+ * answer, and closes in linearly, with jitter that shrinks alongside, reaching the answer on the last step.
  */
-export function thetaPath(cfg: Grid & Pick<ExConfig, "seed" | "answer" | "guessPct">, n: number): number[] {
+export function thetaPath(cfg: Grid & Pick<ExConfig, "seed" | "answer" | "guessPct" | "startPrice">, n: number): number[] {
   const rng = mulberry32(mix(cfg.seed, 0x7e7a));
   const err = Math.round(((cfg.priceMax - cfg.priceMin) * cfg.guessPct) / 100);
-  const guess = clip(cfg, cfg.answer + randint(rng, -err, err));
+  const randomGuess = cfg.answer + randint(rng, -err, err);
+  const guess = clip(cfg, cfg.startPrice ?? randomGuess);
   const jitter = err > 0 ? Math.max(1, Math.round(err / 5)) : 0;
   const out: number[] = [];
   for (let k = 0; k < n; k++) {
     const w = n > 1 ? 1 - k / (n - 1) : 1;
-    out.push(clip(cfg, cfg.answer + (guess - cfg.answer) * w + randint(rng, -jitter, jitter) * w));
+    const j = randint(rng, -jitter, jitter);
+    out.push(k === 0 && cfg.startPrice !== null ? guess : clip(cfg, cfg.answer + (guess - cfg.answer) * w + j * w));
   }
   return out;
 }

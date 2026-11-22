@@ -32,7 +32,7 @@ const POLL_ADVANCE_MS = 400;
 type Stored = ExState & { rl?: Record<string, number[]> };
 type Tx = Prisma.TransactionClient;
 
-type ConfigCols = "seed" | "answer" | "priceMin" | "priceMax" | "guessPct" | "caseSecs" | "stepSecs" | "customerRate" | "positionLimit" | "maxOrderSize" | "maxOpenOrders";
+type ConfigCols = "seed" | "answer" | "priceMin" | "priceMax" | "guessPct" | "startPrice" | "caseSecs" | "stepSecs" | "customerRate" | "positionLimit" | "maxOrderSize" | "maxOpenOrders";
 
 export function exConfig(game: Pick<ExGame, ConfigCols>): ExConfig {
   return {
@@ -41,6 +41,7 @@ export function exConfig(game: Pick<ExGame, ConfigCols>): ExConfig {
     priceMin: game.priceMin,
     priceMax: game.priceMax,
     guessPct: game.guessPct,
+    startPrice: game.startPrice,
     caseSecs: game.caseSecs,
     stepSecs: game.stepSecs,
     customerRate: game.customerRate,
