@@ -65,8 +65,8 @@ recreates the single-contract preliminary case of Traders@MIT's Mangocore simula
   fair-side Buy/Sell buttons; cancel / cancel all. Limits: max order size, max open orders, and long and short
   exposure (incl. open orders) each within the risk limit.
 - **Scoring.** 100,000 starting cash; P&L marks to the last traded price during the case and settles at the answer at
-  the bell. The host sees the answer, the bots' fair, the scoreboard and P&L history; the answer and the bots' path are
-  revealed to everyone at the end.
+  the bell. The host sees the scoreboard and P&L history; the answer and the bots' path are
+  hidden from everyone, host included (the host screen is meant to be shared), and revealed at the end.
 - **Serverless.** The bots are generated from a per-game seed and replayed up to "now" on every request, so no
   background process is needed. Each game's book lives in `ExGame.state`; actions take the row lock, pollers use
   `SKIP LOCKED`, and players are limited to 5 actions a second. Engine in `src/lib/ex.ts`, persistence and views in

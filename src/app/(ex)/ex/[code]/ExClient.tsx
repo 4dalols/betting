@@ -191,7 +191,7 @@ function Question({ view }: { view: ExView }) {
       </p>
       {view.answer !== null && (
         <span className="pill ml-auto bg-amber-400/10 text-amber-300">
-          {view.status === "FINISHED" ? "Answer" : "Answer (host only)"}: {view.answer.toLocaleString("en-US")}
+          Answer: {view.answer.toLocaleString("en-US")}
         </span>
       )}
     </div>
@@ -499,7 +499,6 @@ function HostPanel({
     <div className={`panel flex min-h-0 flex-col gap-3 ${big ? "h-full p-5" : ""}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className={big ? "text-xl font-semibold text-zinc-50" : "section-title"}>{big ? "Live scoreboard" : "Scoreboard"}</h2>
-        <span className={`pill bg-amber-400/10 text-amber-300 ${big ? "text-sm" : ""}`}>Bots&apos; fair now: {view.fairNow ?? "—"}</span>
       </div>
       <div className="flex flex-wrap gap-4 text-xs text-zinc-400">
         <label className="flex items-center gap-1">

@@ -7,7 +7,6 @@ import {
   cancelWhere,
   checkOrder,
   emptyState,
-  fairAt,
   mid,
   openOrders,
   pathFor,
@@ -239,10 +238,8 @@ export type ExView = {
   standings: ExStanding[] | null;
   /** Host only: P&L per player over time. */
   pnlHistory: { names: string[]; points: [number, ...number[]][] } | null;
-  /** Host always; everyone once finished. */
+  /** Revealed to everyone, host included, only once finished (the host screen is often shared). */
   answer: number | null;
-  /** Host while playing: the bots' fair value in effect now. */
-  fairNow: number | null;
   /** Revealed at the end: the bots' fair value per step. */
   fairPath: number[] | null;
 };
@@ -332,8 +329,7 @@ export async function getExView(code: string, playerToken?: string, hostToken?: 
           points: state.pnlHistory.map(([sec, byId]) => [sec, ...game.players.map((p) => byId[p.id] ?? 0)] as [number, ...number[]]),
         }
       : null,
-    answer: isHost || finished ? cfg.answer : null,
-    fairNow: isHost && game.status === "PLAYING" ? fairAt(cfg, theta, state.t) : null,
+    answer: finished ? cfg.answer : null,
     fairPath: finished ? theta.slice(0, steps(cfg)) : null,
   };
 }
