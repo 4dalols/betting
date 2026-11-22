@@ -49,7 +49,7 @@ export default async function ExHostPage() {
               <input className="input" name="question" maxLength={300} placeholder="Hurricanes to hit the US mainland, 1925–2024" required />
             </Field>
             <div className="grid gap-3 sm:grid-cols-4">
-              <Field label="True answer" hint="Hidden until the bell">
+              <Field label="True answer" hint="Hidden from everyone, you included, until the bell">
                 <input className="input" name="answer" type="number" step="any" required />
               </Field>
               <Field label="Lowest price">
