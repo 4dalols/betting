@@ -75,6 +75,7 @@ async function write(tx: Tx, gameId: string, state: Stored, data: Prisma.ExGameU
   await tx.exGame.update({
     where: { id: gameId },
     data: { ...data, state: core as unknown as Prisma.InputJsonValue, snap: snapOf(core) as unknown as Prisma.InputJsonValue },
+    select: { id: true },
   });
   if (chart.length || pnlHistory.length)
     await tx.$executeRaw`UPDATE "ExGame" SET "chart" = "chart" || ${JSON.stringify(chart)}::jsonb, "pnlHistory" = "pnlHistory" || ${JSON.stringify(pnlHistory)}::jsonb WHERE id = ${gameId}`;
@@ -111,7 +112,7 @@ async function catchUp(tx: Tx, game: GameRow, now: number): Promise<{ state: Sto
   const finished = now >= game.endsAt!.getTime();
   if (finished) {
     const players = await tx.exPlayer.findMany({ where: { gameId: game.id }, select: { id: true } });
-    for (const p of players) await tx.exPlayer.update({ where: { id: p.id }, data: { pnl: pnl(state.accounts[p.id], cfg.answer) } });
+    for (const p of players) await tx.exPlayer.update({ where: { id: p.id }, data: { pnl: pnl(state.accounts[p.id], cfg.answer) }, select: { id: true } });
   }
   return { state, finished };
 }
@@ -169,7 +170,7 @@ export async function endGame(gameId: string) {
     const game = await tx.exGame.findUnique({ where: { id: gameId }, omit: lean });
     if (!game) return;
     if (game.status === "LOBBY") {
-      await tx.exGame.update({ where: { id: gameId }, data: { status: "FINISHED", seq: { increment: 1 } } });
+      await tx.exGame.update({ where: { id: gameId }, data: { status: "FINISHED", seq: { increment: 1 } }, select: { id: true } });
       return;
     }
     if (game.status !== "PLAYING") return;
@@ -184,7 +185,7 @@ export async function endGame(gameId: string) {
     const caseSecs = Math.max(1, Math.ceil(elapsed / 1000));
     const shortened = { ...game, caseSecs, endsAt: new Date(now) };
     const { state } = await catchUp(tx, shortened, now);
-    await tx.exGame.update({ where: { id: gameId }, data: { caseSecs, endsAt: new Date(now) } });
+    await tx.exGame.update({ where: { id: gameId }, data: { caseSecs, endsAt: new Date(now) }, select: { id: true } });
     await save(tx, shortened, state, true, now);
   });
 }

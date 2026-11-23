@@ -59,7 +59,7 @@ export async function createExGame(_prev: ActionState, formData: FormData): Prom
     let created: { code: string } | null = null;
     for (let attempt = 0; attempt < 5 && !created; attempt++) {
       const candidate = randomCode(4);
-      if (await prisma.exGame.findUnique({ where: { code: candidate } })) continue;
+      if (await prisma.exGame.findUnique({ where: { code: candidate }, select: { id: true } })) continue;
       created = await prisma.exGame.create({ data: { ...settings, code: candidate, hostToken }, select: { code: true } });
     }
     if (!created) throw new Error("Couldn't allocate a game code, try again");
