@@ -71,7 +71,9 @@ recreates the single-contract preliminary case of Traders@MIT's Mangocore simula
 - **Serverless.** The bots are generated from a per-game seed and replayed up to "now" on every request, so no
   background process is needed. Each game's book lives in `ExGame.state`; actions take the row lock, pollers use
   `SKIP LOCKED`, and players are limited to 5 actions a second. Engine in `src/lib/ex.ts`, persistence and views in
-  `src/lib/ex-state.ts`.
+  `src/lib/ex-state.ts`. Each save also writes a small `ExGame.snap` (top 15 levels, last, accounts) and appends
+  chart, P&L-history and fill samples to their own columns, so a poll reads only the snapshot, the viewer's own
+  orders and fills, and chart points it doesn't have yet.
 
 Admins can wipe all betting data (markets, bets, ledger, payments; balances zeroed) from the **Danger zone** on `/admin`.
 

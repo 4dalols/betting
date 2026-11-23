@@ -15,7 +15,7 @@ export const CUSTOMER_LEAN = 2;
 export const MM_LEVELS = 30;
 export const MM = "mm";
 export const CUSTOMER = "cust";
-const MAX_FILLS = 50;
+export const MAX_FILLS = 50;
 const PNL_SAMPLE_SECS = 10;
 
 export type ExConfig = {

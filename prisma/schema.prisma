@@ -494,8 +494,14 @@ model ExGame {
   startedAt  DateTime?
   endsAt     DateTime?
   seq        Int       @default(0)
-  /// Engine state (books, accounts, chart); see src/lib/ex.ts. Rewritten under a row lock.
+  /// Engine state (book, accounts, counters); see src/lib/ex.ts. Rewritten under a row lock.
   state      Json?
+  /// What every screen shows (top of the book, last, accounts), saved with the state so polls don't read it.
+  snap       Json?
+  /// [second, mid, last] samples; append-only, so polls fetch only the new ones.
+  chart      Json      @default("[]")
+  /// [second, { playerId: P&L }] samples; append-only.
+  pnlHistory Json      @default("[]")
   /// Wall-clock time the state was last advanced to.
   advancedAt DateTime?
 
@@ -511,6 +517,8 @@ model ExPlayer {
   joinedAt DateTime @default(now())
   /// Final PnL, written when the game finishes.
   pnl      Float?
+  /// Last 50 fills, oldest first.
+  fills    Json     @default("[]")
 
   @@unique([gameId, name])
 }

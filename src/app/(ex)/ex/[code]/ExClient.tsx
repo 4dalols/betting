@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ExLevel, ExView } from "@/lib/ex-state";
 import { exHostAction, exTrade, joinExGame } from "@/lib/ex-actions";
 import { formatMoney, formatSignedMoney } from "@/lib/ex";
@@ -18,8 +18,23 @@ const clock = (ms: number) => {
 const signedClass = (n: number) => (n > 0 ? "text-emerald-300" : n < 0 ? "text-red-300" : "text-zinc-300");
 const signed = (n: number) => (n > 0 ? `+${n.toLocaleString("en-US")}` : n.toLocaleString("en-US"));
 
+/** Polls send only chart and P&L points newer than what we have; append them. */
+function after<T extends [number, ...unknown[]]>(old: T[], add: T[]): T[] {
+  const last = old.at(-1)?.[0] ?? -1;
+  return [...old, ...add.filter((p) => p[0] > last)];
+}
+
+function mergeView(prev: ExView, next: ExView): ExView {
+  return {
+    ...next,
+    chart: after(prev.chart, next.chart),
+    pnlHistory: next.pnlHistory && { names: next.pnlHistory.names, points: after(prev.pnlHistory?.points ?? [], next.pnlHistory.points) },
+  };
+}
+
 export function ExClient({ initial }: { initial: ExView }) {
   const [view, setView] = useState(initial);
+  const latest = useRef(initial);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -28,9 +43,15 @@ export function ExClient({ initial }: { initial: ExView }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/ex/${initial.code}`, { cache: "no-store" });
+      const since = new URLSearchParams();
+      const chart = latest.current.chart.at(-1)?.[0];
+      const pnl = latest.current.pnlHistory?.points.at(-1)?.[0];
+      if (chart !== undefined) since.set("chart", String(chart));
+      if (pnl !== undefined) since.set("pnl", String(pnl));
+      const res = await fetch(`/api/ex/${initial.code}?${since}`, { cache: "no-store" });
       if (!res.ok) return;
-      const v: ExView = await res.json();
+      const v = mergeView(latest.current, await res.json());
+      latest.current = v;
       setOffset(v.serverNow - Date.now());
       setView(v);
     } catch {
@@ -580,7 +601,7 @@ function PnlChart({ history, caseSecs, className = "h-40" }: { history: NonNulla
         {history.names.map((name, i) => (
           <polyline
             key={name}
-            points={history.points.map((p) => `${x(p[0]).toFixed(1)},${y(p[i + 1]).toFixed(1)}`).join(" ")}
+            points={history.points.map((p) => `${x(p[0]).toFixed(1)},${y(p[i + 1] ?? 0).toFixed(1)}`).join(" ")}
             fill="none"
             stroke={SERIES[i % SERIES.length]}
             strokeWidth={1.25}
